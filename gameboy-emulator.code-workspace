@@ -1,6 +1,10 @@
 {
 	"folders": [
 		{
+			"path": "gbe-core"
+		},
+		{
+			"path": "gbe-gui"
 		}
 	],
 	"settings": {}

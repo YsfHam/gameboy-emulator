@@ -78,6 +78,15 @@ impl Registers {
 
         (reg_f >> flag as u8) & 1 > 0
     }
+
+    pub fn update_flag(&mut self, flag: Flag, value: bool) {
+        if value {
+            self.set_flag(flag);
+        }
+        else {
+            self.unset_flag(flag);
+        }
+    }
 }
 
 

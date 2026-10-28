@@ -64,7 +64,7 @@ impl Cpu {
 }
 
 
-enum ConditionCode {
+pub enum ConditionCode {
     Z, NZ, C, NC
 }
 

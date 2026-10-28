@@ -1,4 +1,4 @@
-use crate::cpu::registers::{Register16, Register8};
+use crate::cpu::{ConditionCode, registers::{Register8, Register16}};
 
 pub enum Instruction {
     Nop,
@@ -7,14 +7,67 @@ pub enum Instruction {
     AddA(AddressingMode),
     AddHL(Register16),
     AddSP,
-
     And(AddressingMode),
+    Bit(u8, AddressingMode),
+    Call(Option<ConditionCode>),
+    Ccf,
+    Cp(AddressingMode),
+    Cpl,
+    Daa,
+    Dec8(Register8),
+    DecHL,
+    Dec16(Register16),
+    Di,
+    Ei,
+    Halt,
+    Inc8(Register8),
+    IncHL,
+    Inc16(Register16),
+    Jp(Option<ConditionCode>),
+    JpHL,
+    Jr(Option<ConditionCode>),
+    Ld8(AddressingMode, AddressingMode),
+    Ld16(Register16, AddressingMode16),
+    LdSp,
+    LdHLSp,
+    Or(AddressingMode),
+    Pop(Register16),
+    Push(Register16),
+    Res(u8, AddressingMode),
+    Ret(Option<ConditionCode>),
+    RetI,
+    Rl(AddressingMode),
+    Rlc(AddressingMode),
+    Rr(AddressingMode),
+    Rrc(AddressingMode),
+    Rst(u16),
+    Sbc(AddressingMode),
+    Scf,
+    Set(u8, AddressingMode),
+    Sla(AddressingMode),
+    Sra(AddressingMode),
+    Srl(AddressingMode),
+    Stop,
+    Sub(AddressingMode),
+    Swap(AddressingMode),
+    Xor(AddressingMode),   
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum AddressingMode {
     Register(Register8),
     Indirect(Register16),
+    IdirectImm16,
+    IndirectInc(Register16),
+    IndirectDec(Register16),
+    IndirectImmH,
+    CarryH,
     Immediate8,
+}
+
+pub enum AddressingMode16 {
+    Register(Register16),
+    Immediate16,
 }
 
 impl Instruction {

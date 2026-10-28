@@ -1,6 +1,7 @@
-use crate::{bus::Bus, cpu::registers::{Flag, Register8, Register16, Registers}, instruction::{AddressingMode, Instruction}};
+use crate::{bus::Bus, cpu::{instruction::{AddressingMode, AddressingMode16, Instruction}, registers::{Flag, Register8, Register16, Registers}}};
 
 pub mod registers;
+pub mod instruction;
 mod helpers;
 
 pub struct Cpu {
@@ -94,7 +95,7 @@ impl Cpu {
         instruction
     }
 
-    fn get_data(&mut self, bus: &Bus, mode: AddressingMode) -> u8 {
+    fn addressing_mode_read(&mut self, bus: &Bus, mode: AddressingMode) -> u8 {
         match mode {
             AddressingMode::Register(register8) => self.registers.read_u8(register8),
             AddressingMode::Indirect(register16) => {
@@ -102,13 +103,82 @@ impl Cpu {
                 bus.read_u8(addr)
             },
             AddressingMode::Immediate8 => self.fetch_u8(bus),
+            AddressingMode::IdirectImm16 => {
+                let addr = self.fetch_u16(bus);
+                bus.read_u8(addr)
+            },
+            AddressingMode::IndirectInc(register16) => {
+                let addr = self.registers.read_u16(register16);
+                self.registers.write_u16(register16, addr.wrapping_add(1));
+                bus.read_u8(addr)
+            },
+            AddressingMode::IndirectDec(register16) => {
+                let addr = self.registers.read_u16(register16);
+                self.registers.write_u16(register16, addr.wrapping_sub(1));
+                bus.read_u8(addr)
+            },
+            AddressingMode::IndirectImmH => {
+                let addr = 0xFF00 | self.fetch_u8(bus) as u16;
+                bus.read_u8(addr)
+            },
+            AddressingMode::CarryH => {
+                let addr = 0xFF00 | self.registers.get_flag(Flag::Carry) as u16;
+                bus.read_u8(addr)
+            },
+        }
+    }
+
+    fn addressing_mode_write(&mut self, bus: &mut Bus, mode: AddressingMode, value: u8) {
+        match mode {
+            AddressingMode::Register(register8) => self.registers.write_u8(register8, value),
+            AddressingMode::Indirect(register16) => {
+                let addr = self.registers.read_u16(register16);
+                bus.write_u8(addr, value);
+            },
+            AddressingMode::IdirectImm16 => {
+                let addr = self.fetch_u16(bus);
+                bus.write_u8(addr, value);
+            },
+            AddressingMode::IndirectInc(register16) => {
+                let addr = self.registers.read_u16(register16);
+                self.registers.write_u16(register16, addr.wrapping_add(1));
+                bus.write_u8(addr, value);
+            },
+            AddressingMode::IndirectDec(register16) => {
+                let addr = self.registers.read_u16(register16);
+                self.registers.write_u16(register16, addr.wrapping_sub(1));
+                bus.write_u8(addr, value);
+            },
+            AddressingMode::IndirectImmH => {
+                let addr = 0xFF00 | self.fetch_u8(bus) as u16;
+                bus.write_u8(addr, value);
+            },
+            AddressingMode::CarryH => {
+                let addr = 0xFF00 | self.registers.get_flag(Flag::Carry) as u16;
+                bus.write_u8(addr, value);
+            },
+            AddressingMode::Immediate8 => unreachable!("Cannot write to immediate addressing mode"),
+        }
+    } 
+
+    fn addressing_mode16_read(&mut self, bus: &Bus, mode: AddressingMode16) -> u16 {
+        match mode {
+            AddressingMode16::Register(register16) => self.registers.read_u16(register16),
+            AddressingMode16::Immediate16 => self.fetch_u16(bus),
         }
     }
 
     fn alu_cycles(mode: &AddressingMode) -> u8 {
         match mode {
             AddressingMode::Register(_) => 0,
-            AddressingMode::Indirect(_) | AddressingMode::Immediate8 => 1,
+            AddressingMode::Indirect(_) 
+            | AddressingMode::Immediate8
+            | AddressingMode::IndirectInc(_)
+            | AddressingMode::IndirectDec(_)
+            => 1,
+            AddressingMode::IdirectImm16 => 3,
+            AddressingMode::IndirectImmH => 2,
+            AddressingMode::CarryH => 1,
         }
     }
 
@@ -172,30 +242,137 @@ struct ExecutionResult {
 impl Cpu {
     fn execute(&mut self, bus: &mut Bus, instruction: Instruction) {
         let result = match instruction {
-            crate::instruction::Instruction::Nop => self.nop(),
+            Instruction::Nop => self.nop(),
 
-            crate::instruction::Instruction::Adc(addressing_mode) => {
+            Instruction::Adc(addressing_mode) => {
                 let cycles = Self::alu_cycles(&addressing_mode);
-                let value = self.get_data(bus, addressing_mode);
+                let value = self.addressing_mode_read(bus, addressing_mode);
                 self.adc(value, cycles)
             },
-            crate::instruction::Instruction::AddA(addressing_mode) => {
+            Instruction::AddA(addressing_mode) => {
                 let cycles = Self::alu_cycles(&addressing_mode);
-                let value = self.get_data(bus, addressing_mode);
+                let value = self.addressing_mode_read(bus, addressing_mode);
                 self.add_a(value, cycles)
             },
-            crate::instruction::Instruction::AddHL(register16) => {
+            Instruction::AddHL(register16) => {
                 let value = self.registers.read_u16(register16);
                 self.add_hl(value)
             },
-            crate::instruction::Instruction::AddSP => {
+            Instruction::AddSP => {
                 let value = self.fetch_u8(bus);
                 self.add_sp(value as i8)
             },
-            crate::instruction::Instruction::And(addressing_mode) => {
+            Instruction::And(addressing_mode) => {
                 let cycles = Self::alu_cycles(&addressing_mode);
-                let value = self.get_data(bus, addressing_mode);
+                let value = self.addressing_mode_read(bus, addressing_mode);
                 self.and(value, cycles)
+            },
+            Instruction::Bit(offset, addressing_mode) => {
+                let value = self.addressing_mode_read(bus, addressing_mode);
+                let alu_cycles = Self::alu_cycles(&addressing_mode);
+                self.bit(offset, value, alu_cycles)
+            },
+            Instruction::Call(condition_code) => {
+                let addr = self.fetch_u16(bus);
+                match condition_code {
+                    Some(cc) => self.call_cc(bus, cc, addr),
+                    None => self.call(bus, addr)
+                }
+            }
+            Instruction::Ccf => self.ccf(),
+            Instruction::Cp(addressing_mode) => {
+                let value = self.addressing_mode_read(bus, addressing_mode);
+                let alu_cycles = Self::alu_cycles(&addressing_mode);
+                self.cp(value,alu_cycles)
+            },
+            Instruction::Cpl => self.cpl(),
+            Instruction::Daa => self.daa(),
+            Instruction::Dec8(register8) => self.dec_r8(register8),
+            Instruction::DecHL => self.dec_hl(bus),
+            Instruction::Dec16(register16) => self.dec_r16(register16),
+            Instruction::Di => self.di(),
+            Instruction::Ei => self.ei(),
+            Instruction::Halt => self.halt(),
+            Instruction::Inc8(register8) => self.inc_r8(register8),
+            Instruction::IncHL => self.inc_hl(bus),
+            Instruction::Inc16(register16) => self.inc_r16(register16),
+            Instruction::Jp(condition_code) => {
+                let addr = self.fetch_u16(bus);
+                match condition_code {
+                    Some(cc) => self.jp_cc(cc, addr),
+                    None => self.jp(addr),
+                }
+            },
+            Instruction::JpHL => self.jp_hl(),
+            Instruction::Jr(condition_code) => {
+                let addr = self.fetch_u8(bus);
+                match condition_code {
+                    Some(cc) => self.jr_cc(cc, addr),
+                    None => self.jr(addr),
+                }
+            },
+            Instruction::Ld8(dest, src) => self.ld(bus, dest, src),
+            Instruction::Ld16(register16, addressing_mode16) => {
+                let value = self.addressing_mode16_read(bus, addressing_mode16);
+                self.ld_r16(register16, value)
+            }
+            Instruction::LdSp => {
+                let addr = self.fetch_u16(bus);
+                self.ld_sp(bus, addr)
+            },
+            Instruction::LdHLSp => {
+                let value = self.fetch_u8(bus);
+                self.ld_hl_sp(value as i8)
+            },
+            Instruction::Or(addressing_mode) => {
+                let value = self.addressing_mode_read(bus, addressing_mode);
+                let alu_cycles = Self::alu_cycles(&addressing_mode);
+                self.or(value, alu_cycles)
+            },
+            Instruction::Pop(register16) => {
+                self.pop(bus, register16)
+            },
+            Instruction::Push(register16) => {
+                self.push(bus, register16)
+            },
+            Instruction::Res(bit, addressing_mode) => {
+                self.res(bus, bit, addressing_mode)
+            },
+            Instruction::Ret(condition_code) => {
+                match condition_code {
+                    Some(cc) => self.ret_cc(bus, cc),
+                    None => self.ret(bus),
+                }
+            },
+            Instruction::RetI => self.reti(bus),
+            Instruction::Rl(addressing_mode) => self.rl(bus, addressing_mode),
+            Instruction::Rlc(addressing_mode) => self.rlc(bus, addressing_mode),
+            Instruction::Rr(addressing_mode) => self.rr(bus, addressing_mode),
+            Instruction::Rrc(addressing_mode) => self.rrc(bus, addressing_mode),
+            Instruction::Rst(vec) => self.rst(bus, vec),
+            Instruction::Sbc(addressing_mode) => {
+                let value = self.addressing_mode_read(bus, addressing_mode);
+                let alu_cycles = Self::alu_cycles(&addressing_mode);
+                self.sbc(value, alu_cycles)
+            },
+            Instruction::Scf => self.scf(),
+            Instruction::Set(offset, addressing_mode) => {
+                self.set(bus, offset, addressing_mode)
+            },
+            Instruction::Sla(addressing_mode) => self.sla(bus, addressing_mode),
+            Instruction::Sra(addressing_mode) => self.sra(bus, addressing_mode),
+            Instruction::Srl(addressing_mode) => self.srl(bus, addressing_mode),
+            Instruction::Stop => self.stop(bus),
+            Instruction::Sub(addressing_mode) => {
+                let value = self.addressing_mode_read(bus, addressing_mode);
+                let alu_cycles = Self::alu_cycles(&addressing_mode);
+                self.sub(value, alu_cycles)
+            },
+            Instruction::Swap(addressing_mode) => self.swap(bus, addressing_mode),
+            Instruction::Xor(addressing_mode) => {
+                let value = self.addressing_mode_read(bus, addressing_mode);
+                let alu_cycles = Self::alu_cycles(&addressing_mode);
+                self.xor(value, alu_cycles)
             },
         };
 
@@ -465,7 +642,7 @@ impl Cpu {
         let (result, half_carry, _) = helpers::sub_u8(value, 1);
         bus.write_u8(hl, result);
         ExecutionResult {
-            machine_cycles: 1,
+            machine_cycles: 3,
             flags_update: FlagsUpdate {
                 flag_z: Some(result == 0),
                 flag_n: Some(true),
@@ -576,16 +753,24 @@ impl Cpu {
         }
     }
 
-    fn jr(&mut self, rel_addr: u16) -> ExecutionResult {
-        let rel_addr = ((rel_addr & 0xFF) as i8) as i16;
-        self.pc = self.pc.wrapping_add_signed(rel_addr);
+    fn jp_hl(&mut self) -> ExecutionResult {
+        let hl_reg = self.registers.read_u16(Register16::HL);
+        self.pc = hl_reg;
+        ExecutionResult {
+            machine_cycles: 1,
+            flags_update: Default::default()
+        }
+    }
+
+    fn jr(&mut self, rel_addr: u8) -> ExecutionResult {
+        self.pc = self.pc.wrapping_add_signed(rel_addr as i16);
         ExecutionResult {
             machine_cycles: 3,
             flags_update: Default::default(),
         }
     }
 
-    fn jr_cc(&mut self, cc: ConditionCode, rel_addr: u16) -> ExecutionResult {
+    fn jr_cc(&mut self, cc: ConditionCode, rel_addr: u8) -> ExecutionResult {
         if self.check_condition(cc) {
             self.jr(rel_addr)
         }
@@ -597,10 +782,11 @@ impl Cpu {
         }
     }
 
-    fn ld_r8(&mut self, reg: Register8, value: u8, alu_cycles: u8) -> ExecutionResult {
-        self.registers.write_u8(reg, value);
+    fn ld(&mut self, bus: &mut Bus, dest: AddressingMode, src: AddressingMode) -> ExecutionResult {
+        let value = self.addressing_mode_read(bus, src);
+        self.addressing_mode_write(bus, dest, value);
         ExecutionResult {
-            machine_cycles: alu_cycles + 1,
+            machine_cycles: Self::alu_cycles(&src) + Self::alu_cycles(&dest) + 1,
             flags_update: Default::default()
         }
     }
@@ -611,27 +797,6 @@ impl Cpu {
             machine_cycles: 3,
             flags_update: Default::default(),
         }
-    }
-
-    fn ld_indirect(&mut self, bus: &mut Bus, addr: u16, value: u8, alu_cycles: u8) -> ExecutionResult {
-        bus.write_u8(addr, value);
-        ExecutionResult {
-            machine_cycles: alu_cycles + 2,
-            flags_update: Default::default(),
-        }
-    }
-
-    fn ldh_indirect(&mut self, bus: &mut Bus, addr: u16, value: u8, alu_cycles: u8) -> ExecutionResult {
-        let addr_lo = addr & 0xFF;
-        let addr = 0xFF00 | addr_lo;
-        self.ld_indirect(bus, addr, value, alu_cycles)
-    }
-
-    fn ldh_r8(&mut self, bus: &Bus, addr: u16, alu_cycles: u8) -> ExecutionResult {
-        let addr_lo = addr & 0xFF;
-        let addr = 0xFF00 | addr_lo;
-        let value = bus.read_u8(addr);
-        self.ld_r8(Register8::A, value, alu_cycles)
     }
 
     fn ld_sp(&self, bus: &mut Bus, addr: u16) -> ExecutionResult {
@@ -696,26 +861,14 @@ impl Cpu {
         }
     }
 
-    fn res_r8(&mut self, bit: u8, reg: Register8) -> ExecutionResult {
-        let value = self.registers.read_u8(reg);
-        let result = value & !(1 << bit);
-        self.registers.write_u8(reg, result);
 
+    fn res(&mut self, bus: &mut Bus, offset: u8, addressing_mode: AddressingMode) -> ExecutionResult {
+        let value = self.addressing_mode_read(bus, addressing_mode);
+        let result = value & !(1 << offset);
+        self.addressing_mode_write(bus, addressing_mode, result);
         ExecutionResult {
-            machine_cycles: 2,
+            machine_cycles: 2 + Self::alu_cycles(&addressing_mode) * 2,
             flags_update: Default::default()
-        }
-    }
-
-    fn res_hl(&mut self, bus: &mut Bus, bit: u8) -> ExecutionResult {
-        let addr = self.registers.read_u16(Register16::HL);
-        let value = bus.read_u8(addr);
-        let result = value & !(1 << bit);
-        bus.write_u8(addr, result);
-
-        ExecutionResult {
-            machine_cycles: 4,
-            flags_update: Default::default(),
         }
     }
 
@@ -749,15 +902,14 @@ impl Cpu {
         self.ret(bus)
     }
 
-    fn rl_r8(&mut self, reg: Register8) -> ExecutionResult {
-        let value = self.registers.read_u8(reg);
+    fn rl(&mut self, bus: &mut Bus, addressing_mode: AddressingMode) -> ExecutionResult {
+        let value = self.addressing_mode_read(bus, addressing_mode);
         let (result, carry) = helpers::rotate_left(value, self.registers.get_flag(Flag::Carry));
-        self.registers.write_u8(reg, result);
-
+        self.addressing_mode_write(bus, addressing_mode, result);
         ExecutionResult {
-            machine_cycles: if reg == Register8::A { 1 } else { 2 },
+            machine_cycles: if addressing_mode == AddressingMode::Register(Register8::A) { 1 } else { 2 },
             flags_update: FlagsUpdate {
-                flag_z: Some(result == 0 && reg != Register8::A),
+                flag_z: Some(result == 0 && addressing_mode != AddressingMode::Register(Register8::A)),
                 flag_n: Some(false),
                 flag_h: Some(false),
                 flag_c: Some(carry),
@@ -765,32 +917,15 @@ impl Cpu {
         }
     }
 
-    fn rl_hl(&mut self, bus: &mut Bus) -> ExecutionResult {
-        let addr = self.registers.read_u16(Register16::HL);
-        let value = bus.read_u8(addr);
-        let (result, carry) = helpers::rotate_left(value, self.registers.get_flag(Flag::Carry));
-        bus.write_u8(addr, result);
-
-        ExecutionResult {
-            machine_cycles: 4,
-            flags_update: FlagsUpdate {
-                flag_z: Some(result == 0),
-                flag_n: Some(false),
-                flag_h: Some(false),
-                flag_c: Some(carry),
-            },
-        }
-    }
-
-    fn rlc_r8(&mut self, reg: Register8) -> ExecutionResult {
-        let value = self.registers.read_u8(reg);
+    fn rlc(&mut self, bus: &mut Bus, addressing_mode: AddressingMode) -> ExecutionResult {
+        let value = self.addressing_mode_read(bus, addressing_mode);
         let (result, carry) = helpers::circular_left_rotation(value);
-        self.registers.write_u8(reg, result);
+        self.addressing_mode_write(bus, addressing_mode, result);
 
         ExecutionResult {
-            machine_cycles: if reg == Register8::A { 1 } else { 2 },
+            machine_cycles: if addressing_mode == AddressingMode::Register(Register8::A) { 1 } else { 2 },
             flags_update: FlagsUpdate {
-                flag_z: Some(result == 0 && reg != Register8::A),
+                flag_z: Some(result == 0 && addressing_mode != AddressingMode::Register(Register8::A)),
                 flag_n: Some(false),
                 flag_h: Some(false),
                 flag_c: Some(carry),
@@ -798,32 +933,15 @@ impl Cpu {
         }
     }
 
-    fn rlc_hl(&mut self, bus: &mut Bus) -> ExecutionResult {
-        let addr = self.registers.read_u16(Register16::HL);
-        let value = bus.read_u8(addr);
-        let (result, carry) = helpers::circular_left_rotation(value);
-        bus.write_u8(addr, result);
-
-        ExecutionResult {
-            machine_cycles: 4,
-            flags_update: FlagsUpdate {
-                flag_z: Some(result == 0),
-                flag_n: Some(false),
-                flag_h: Some(false),
-                flag_c: Some(carry),
-            },
-        }
-    }
-
-    fn rr_r8(&mut self, reg: Register8) -> ExecutionResult {
-        let value = self.registers.read_u8(reg);
+    fn rr(&mut self, bus: &mut Bus, addressing_mode: AddressingMode) -> ExecutionResult {
+        let value = self.addressing_mode_read(bus, addressing_mode);
         let (result, carry) = helpers::rotate_right(value, self.registers.get_flag(Flag::Carry));
-        self.registers.write_u8(reg, result);
+        self.addressing_mode_write(bus, addressing_mode, result);
 
         ExecutionResult {
-            machine_cycles: if reg == Register8::A { 1 } else { 2 },
+            machine_cycles: if addressing_mode == AddressingMode::Register(Register8::A) { 1 } else { 2 },
             flags_update: FlagsUpdate {
-                flag_z: Some(result == 0 && reg != Register8::A),
+                flag_z: Some(result == 0 && addressing_mode != AddressingMode::Register(Register8::A)),
                 flag_n: Some(false),
                 flag_h: Some(false),
                 flag_c: Some(carry),
@@ -831,56 +949,22 @@ impl Cpu {
         }
     }
 
-    fn rr_hl(&mut self, bus: &mut Bus) -> ExecutionResult {
-        let addr = self.registers.read_u16(Register16::HL);
-        let value = bus.read_u8(addr);
-        let (result, carry) = helpers::rotate_right(value, self.registers.get_flag(Flag::Carry));
-        bus.write_u8(addr, result);
-
-        ExecutionResult {
-            machine_cycles: 4,
-            flags_update: FlagsUpdate {
-                flag_z: Some(result == 0),
-                flag_n: Some(false),
-                flag_h: Some(false),
-                flag_c: Some(carry),
-            },
-        }
-    }
-
-    fn rrc_r8(&mut self, reg: Register8) -> ExecutionResult {
-        let value = self.registers.read_u8(reg);
+    fn rrc(&mut self, bus: &mut Bus, addressing_mode: AddressingMode) -> ExecutionResult {
+        let value = self.addressing_mode_read(bus, addressing_mode);
         let (result, carry) = helpers::circular_right_rotation(value);
-        self.registers.write_u8(reg, result);
+        self.addressing_mode_write(bus, addressing_mode, result);
 
         ExecutionResult {
-            machine_cycles: if reg == Register8::A { 1 } else { 2 },
+            machine_cycles: if addressing_mode == AddressingMode::Register(Register8::A) { 1 } else { 2 },
             flags_update: FlagsUpdate {
-                flag_z: Some(result == 0 && reg != Register8::A),
+                flag_z: Some(result == 0 && addressing_mode != AddressingMode::Register(Register8::A)),
                 flag_n: Some(false),
                 flag_h: Some(false),
                 flag_c: Some(carry),
             },
         }
     }
-
-    fn rrc_hl(&mut self, bus: &mut Bus) -> ExecutionResult {
-        let addr = self.registers.read_u16(Register16::HL);
-        let value = bus.read_u8(addr);
-        let (result, carry) = helpers::circular_right_rotation(value);
-        bus.write_u8(addr, result);
-
-        ExecutionResult {
-            machine_cycles: 4,
-            flags_update: FlagsUpdate {
-                flag_z: Some(result == 0),
-                flag_n: Some(false),
-                flag_h: Some(false),
-                flag_c: Some(carry),
-            },
-        }
-    }
-
+    
     fn rst(&mut self, bus: &mut Bus, vec: u16) -> ExecutionResult {
         self.stack_push(bus, self.pc);
         self.pc = vec;
@@ -918,36 +1002,25 @@ impl Cpu {
         }
     }
 
-    fn set_r8(&mut self, bit: u8, reg: Register8) -> ExecutionResult {
-        let value = self.registers.read_u8(reg);
+    fn set(&mut self, bus: &mut Bus, bit: u8, addressing_mode: AddressingMode) -> ExecutionResult {
+        let value = self.addressing_mode_read(bus, addressing_mode);
         let result = value | (1 << bit);
-        self.registers.write_u8(reg, result);
+        self.addressing_mode_write(bus, addressing_mode, result);
 
         ExecutionResult {
-            machine_cycles: 2,
+            machine_cycles: 2 + Self::alu_cycles(&addressing_mode) * 2,
             flags_update: Default::default()
         }
+
     }
 
-    fn set_hl(&mut self, bus: &mut Bus, bit: u8) -> ExecutionResult {
-        let addr = self.registers.read_u16(Register16::HL);
-        let value = bus.read_u8(addr);
-        let result = value | (1 << bit);
-        bus.write_u8(addr, result);
-
-        ExecutionResult {
-            machine_cycles: 4,
-            flags_update: Default::default(),
-        }
-    }
-
-    fn sla_r8(&mut self, reg: Register8) -> ExecutionResult {
-        let value = self.registers.read_u8(reg);
+    fn sla(&mut self, bus: &mut Bus, addressing_mode: AddressingMode) -> ExecutionResult {
+        let value = self.addressing_mode_read(bus, addressing_mode);
         let (result, carry) = helpers::shift_left(value);
-        self.registers.write_u8(reg, result);
+        self.addressing_mode_write(bus, addressing_mode, result);
 
         ExecutionResult {
-            machine_cycles: 2,
+            machine_cycles: 2 + Self::alu_cycles(&addressing_mode) * 2,
             flags_update: FlagsUpdate {
                 flag_z: Some(result == 0),
                 flag_n: Some(false),
@@ -957,30 +1030,13 @@ impl Cpu {
         }
     }
 
-    fn sla_hl(&mut self, bus: &mut Bus) -> ExecutionResult {
-        let addr = self.registers.read_u16(Register16::HL);
-        let value = bus.read_u8(addr);
-        let (result, carry) = helpers::shift_left(value);
-        bus.write_u8(addr, result);
-
-        ExecutionResult {
-            machine_cycles: 4,
-            flags_update: FlagsUpdate {
-                flag_z: Some(result == 0),
-                flag_n: Some(false),
-                flag_h: Some(false),
-                flag_c: Some(carry)
-            }
-        }
-    }
-
-    fn sra_r8(&mut self, reg: Register8) -> ExecutionResult {
-        let value = self.registers.read_u8(reg);
+    fn sra(&mut self, bus: &mut Bus, addressing_mode: AddressingMode) -> ExecutionResult {
+        let value = self.addressing_mode_read(bus, addressing_mode);
         let (result, carry) = helpers::arithmetic_shift_right(value);
-        self.registers.write_u8(reg, result);
+        self.addressing_mode_write(bus, addressing_mode, result);
 
         ExecutionResult {
-            machine_cycles: 2,
+            machine_cycles: 2 + Self::alu_cycles(&addressing_mode) * 2,
             flags_update: FlagsUpdate {
                 flag_z: Some(result == 0),
                 flag_n: Some(false),
@@ -990,30 +1046,13 @@ impl Cpu {
         }
     }
 
-    fn sra_hl(&mut self, bus: &mut Bus) -> ExecutionResult {
-        let addr = self.registers.read_u16(Register16::HL);
-        let value = bus.read_u8(addr);
-        let (result, carry) = helpers::arithmetic_shift_right(value);
-        bus.write_u8(addr, result);
-
-        ExecutionResult {
-            machine_cycles: 4,
-            flags_update: FlagsUpdate {
-                flag_z: Some(result == 0),
-                flag_n: Some(false),
-                flag_h: Some(false),
-                flag_c: Some(carry)
-            }
-        }
-    }
-
-    fn srl_r8(&mut self, reg: Register8) -> ExecutionResult {
-        let value = self.registers.read_u8(reg);
+    fn srl(&mut self, bus: &mut Bus, addressing_mode: AddressingMode) -> ExecutionResult {
+        let value = self.addressing_mode_read(bus, addressing_mode);
         let (result, carry) = helpers::shift_right(value);
-        self.registers.write_u8(reg, result);
+        self.addressing_mode_write(bus, addressing_mode, result);
 
         ExecutionResult {
-            machine_cycles: 2,
+            machine_cycles: 2 + Self::alu_cycles(&addressing_mode) * 2,
             flags_update: FlagsUpdate {
                 flag_z: Some(result == 0),
                 flag_n: Some(false),
@@ -1023,25 +1062,7 @@ impl Cpu {
         }
     }
 
-    fn srl_hl(&mut self, bus: &mut Bus) -> ExecutionResult {
-        let addr = self.registers.read_u16(Register16::HL);
-        let value = bus.read_u8(addr);
-        let (result, carry) = helpers::shift_right(value);
-        bus.write_u8(addr, result);
-
-        ExecutionResult {
-            machine_cycles: 4,
-            flags_update: FlagsUpdate {
-                flag_z: Some(result == 0),
-                flag_n: Some(false),
-                flag_h: Some(false),
-                flag_c: Some(carry)
-            }
-        }
-    }
-
-    fn stop(&mut self, bus: &Bus) -> ExecutionResult {
-        let instruction = self.fetch_u8(bus);
+    fn stop(&mut self, _bus: &Bus) -> ExecutionResult {
         todo!("Implement stop")
     }
 
@@ -1061,30 +1082,13 @@ impl Cpu {
         }
     }
 
-    fn swap_r8(&mut self, reg: Register8) -> ExecutionResult {
-        let value = self.registers.read_u8(reg);
-        let result = helpers::swap_nibbles(value);
-        self.registers.write_u8(reg, result);
+    fn swap(&mut self, bus: &mut Bus, addressing_mode: AddressingMode) -> ExecutionResult {
+        let value = self.addressing_mode_read(bus, addressing_mode);
+        let result= helpers::swap_nibbles(value);
+        self.addressing_mode_write(bus, addressing_mode, result);
 
         ExecutionResult {
-            machine_cycles: 2,
-            flags_update: FlagsUpdate {
-                flag_z: Some(result == 0),
-                flag_n: Some(false),
-                flag_h: Some(false),
-                flag_c: Some(false)
-            }
-        }
-    }
-
-    fn swap_hl(&mut self, bus: &mut Bus) -> ExecutionResult {
-        let addr = self.registers.read_u16(Register16::HL);
-        let value = bus.read_u8(addr);
-        let result = helpers::swap_nibbles(value);
-        bus.write_u8(addr, result);
-
-        ExecutionResult {
-            machine_cycles: 4,
+            machine_cycles: 2 + Self::alu_cycles(&addressing_mode) * 2,
             flags_update: FlagsUpdate {
                 flag_z: Some(result == 0),
                 flag_n: Some(false),

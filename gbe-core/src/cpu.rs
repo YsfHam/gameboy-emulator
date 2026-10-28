@@ -351,8 +351,12 @@ impl Cpu {
                 None => self.ret(bus),
             },
             Instruction::RetI => self.reti(bus),
+            Instruction::Rla => self.accumulator_rotate(bus, Self::rl),
+            Instruction::Rlca => self.accumulator_rotate(bus, Self::rlc),
             Instruction::Rl(addressing_mode) => self.rl(bus, addressing_mode),
             Instruction::Rlc(addressing_mode) => self.rlc(bus, addressing_mode),
+            Instruction::Rra => self.accumulator_rotate(bus, Self::rr),
+            Instruction::Rrca => self.accumulator_rotate(bus, Self::rrc),
             Instruction::Rr(addressing_mode) => self.rr(bus, addressing_mode),
             Instruction::Rrc(addressing_mode) => self.rrc(bus, addressing_mode),
             Instruction::Rst(vec) => self.rst(bus, vec),
@@ -897,10 +901,21 @@ impl Cpu {
             }
         } else {
             ExecutionResult {
-                machine_cycles: 4,
+                machine_cycles: 2,
                 flags_update: Default::default(),
             }
         }
+    }
+
+    fn accumulator_rotate(
+        &mut self,
+        bus: &mut Bus,
+        rotate: fn(&mut Self, &mut Bus, AddressingMode) -> ExecutionResult,
+    ) -> ExecutionResult {
+        let mut result = rotate(self, bus, AddressingMode::Register(Register8::A));
+        result.machine_cycles = 1;
+        result.flags_update.flag_z = Some(false);
+        result
     }
 
     fn reti(&mut self, bus: &Bus) -> ExecutionResult {
@@ -913,15 +928,9 @@ impl Cpu {
         let (result, carry) = helpers::rotate_left(value, self.registers.get_flag(Flag::Carry));
         self.addressing_mode_write(bus, addressing_mode, result);
         ExecutionResult {
-            machine_cycles: if addressing_mode == AddressingMode::Register(Register8::A) {
-                1
-            } else {
-                2 + Self::alu_cycles(&addressing_mode) * 2
-            },
+            machine_cycles: 2 + Self::alu_cycles(&addressing_mode) * 2,
             flags_update: FlagsUpdate {
-                flag_z: Some(
-                    result == 0 && addressing_mode != AddressingMode::Register(Register8::A),
-                ),
+                flag_z: Some(result == 0),
                 flag_n: Some(false),
                 flag_h: Some(false),
                 flag_c: Some(carry),
@@ -935,15 +944,9 @@ impl Cpu {
         self.addressing_mode_write(bus, addressing_mode, result);
 
         ExecutionResult {
-            machine_cycles: if addressing_mode == AddressingMode::Register(Register8::A) {
-                1
-            } else {
-                2 + Self::alu_cycles(&addressing_mode) * 2
-            },
+            machine_cycles: 2 + Self::alu_cycles(&addressing_mode) * 2,
             flags_update: FlagsUpdate {
-                flag_z: Some(
-                    result == 0 && addressing_mode != AddressingMode::Register(Register8::A),
-                ),
+                flag_z: Some(result == 0),
                 flag_n: Some(false),
                 flag_h: Some(false),
                 flag_c: Some(carry),
@@ -957,15 +960,9 @@ impl Cpu {
         self.addressing_mode_write(bus, addressing_mode, result);
 
         ExecutionResult {
-            machine_cycles: if addressing_mode == AddressingMode::Register(Register8::A) {
-                1
-            } else {
-                2 + Self::alu_cycles(&addressing_mode) * 2
-            },
+            machine_cycles: 2 + Self::alu_cycles(&addressing_mode) * 2,
             flags_update: FlagsUpdate {
-                flag_z: Some(
-                    result == 0 && addressing_mode != AddressingMode::Register(Register8::A),
-                ),
+                flag_z: Some(result == 0),
                 flag_n: Some(false),
                 flag_h: Some(false),
                 flag_c: Some(carry),
@@ -979,15 +976,9 @@ impl Cpu {
         self.addressing_mode_write(bus, addressing_mode, result);
 
         ExecutionResult {
-            machine_cycles: if addressing_mode == AddressingMode::Register(Register8::A) {
-                1
-            } else {
-                2 + Self::alu_cycles(&addressing_mode) * 2
-            },
+            machine_cycles: 2 + Self::alu_cycles(&addressing_mode) * 2,
             flags_update: FlagsUpdate {
-                flag_z: Some(
-                    result == 0 && addressing_mode != AddressingMode::Register(Register8::A),
-                ),
+                flag_z: Some(result == 0),
                 flag_n: Some(false),
                 flag_h: Some(false),
                 flag_c: Some(carry),
@@ -1186,6 +1177,86 @@ mod tests {
         assert_eq!(cpu.remaining_cycles + 1, machine_cycles);
     }
 
+    fn expected_base_cycles(opcode: u8) -> Option<u8> {
+        if (0x40..=0x7F).contains(&opcode) {
+            return Some(if opcode == 0x76 {
+                1
+            } else if (opcode & 0x07 == 6) || (opcode >> 3 & 0x07 == 6) {
+                2
+            } else {
+                1
+            });
+        }
+
+        if (0x80..=0xBF).contains(&opcode) {
+            return Some(if opcode & 0x07 == 6 { 2 } else { 1 });
+        }
+
+        if opcode & 0xC7 == 0x04 || opcode & 0xC7 == 0x05 {
+            return Some(if (opcode >> 3) & 0x07 == 6 { 3 } else { 1 });
+        }
+
+        if opcode & 0xC7 == 0x06 {
+            return Some(if (opcode >> 3) & 0x07 == 6 { 3 } else { 2 });
+        }
+
+        if opcode & 0xCF == 0x01 {
+            return Some(3);
+        }
+
+        if opcode & 0xCF == 0x03 || opcode & 0xCF == 0x0B {
+            return Some(2);
+        }
+
+        if opcode & 0xCF == 0x09 {
+            return Some(2);
+        }
+
+        Some(match opcode {
+            0x00 | 0x07 | 0x0F | 0x17 | 0x1F | 0x27 | 0x2F | 0x37 | 0x3F | 0xF3 | 0xFB => 1,
+            0x02 | 0x0A | 0x12 | 0x1A | 0x22 | 0x2A | 0x32 | 0x3A | 0xE2 | 0xF2 => 2,
+            0x08 => 5,
+            0x18 => 3,
+            0x20 | 0x38 => 2,
+            0x28 => 3,
+            0x30 => 3,
+            0xC0 => 2,
+            0xD0 => 5,
+            0xC1 | 0xD1 | 0xE1 | 0xF1 => 3,
+            0xC2 | 0xDA => 3,
+            0xD2 | 0xCA => 4,
+            0xC3 => 4,
+            0xC4 | 0xDC => 3,
+            0xD4 | 0xCC => 6,
+            0xC5 | 0xD5 | 0xE5 | 0xF5 => 4,
+            0xC6 | 0xCE | 0xD6 | 0xDE | 0xE6 | 0xEE | 0xF6 | 0xFE => 2,
+            0xC7 | 0xCF | 0xD7 | 0xDF | 0xE7 | 0xEF | 0xF7 | 0xFF => 4,
+            0xC8 => 5,
+            0xD8 => 2,
+            0xC9 | 0xD9 => 4,
+            0xCD => 6,
+            0xCB => 1,
+            0xD3 | 0xDB | 0xDD | 0xE3 | 0xE4 | 0xEB | 0xEC | 0xED | 0xF4 | 0xFC | 0xFD => {
+                return None
+            }
+            0xE0 | 0xF0 => 3,
+            0xEA | 0xFA => 4,
+            0xE8 => 4,
+            0xE9 => 1,
+            0xF8 => 3,
+            0xF9 => 2,
+            _ => return None,
+        })
+    }
+
+    fn expected_cb_cycles(opcode: u8) -> u8 {
+        match opcode >> 6 {
+            1 if opcode & 0x07 == 6 => 3,
+            0 | 2 | 3 if opcode & 0x07 == 6 => 4,
+            _ => 2,
+        }
+    }
+
     #[test]
     fn every_documented_opcode_executes_without_panicking_except_stop() {
         const ILLEGAL: [u8; 11] = [
@@ -1217,6 +1288,148 @@ mod tests {
                 "CB opcode 0x{opcode:02X} did not execute"
             );
         }
+    }
+
+    #[test]
+    fn documented_opcodes_match_reference_machine_cycle_counts() {
+        const ILLEGAL: [u8; 11] = [
+            0xD3, 0xDB, 0xDD, 0xE3, 0xE4, 0xEB, 0xEC, 0xED, 0xF4, 0xFC, 0xFD,
+        ];
+        let mut mismatches = Vec::new();
+
+        for opcode in 0..=u8::MAX {
+            if opcode == 0x10 || ILLEGAL.contains(&opcode) {
+                continue;
+            }
+
+            let Some(expected) = expected_base_cycles(opcode) else {
+                mismatches.push(format!(
+                    "no cycle expectation for base opcode 0x{opcode:02X}"
+                ));
+                continue;
+            };
+            let (mut cpu, mut bus) = setup();
+            cpu.registers.write_u8(Register8::A, 0x80);
+            cpu.registers.write_u8(Register8::B, 1);
+            cpu.registers.write_u8(Register8::F, 0x80);
+            let execution = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                run(&mut cpu, &mut bus, &[opcode, 0, 0]);
+            }));
+            if execution.is_err() {
+                mismatches.push(format!("base opcode 0x{opcode:02X} panicked"));
+                continue;
+            }
+            let actual = cpu.remaining_cycles + 1;
+            if actual != expected {
+                mismatches.push(format!(
+                    "base opcode 0x{opcode:02X}: expected {expected}, got {actual}"
+                ));
+            }
+        }
+
+        for opcode in 0..=u8::MAX {
+            let (mut cpu, mut bus) = setup();
+            run_cb(&mut cpu, &mut bus, opcode);
+            let expected = expected_cb_cycles(opcode);
+            // The prefix consumes the first clock; the second clock has advanced the CB
+            // instruction by one cycle, so include only its remaining cycles plus that one.
+            let actual = cpu.remaining_cycles + 1;
+            if actual != expected {
+                mismatches.push(format!(
+                    "CB opcode 0x{opcode:02X}: expected {expected}, got {actual}"
+                ));
+            }
+        }
+
+        assert!(
+            mismatches.is_empty(),
+            "instruction cycle mismatches:\n{}",
+            mismatches.join("\n")
+        );
+    }
+
+    #[test]
+    fn conditional_control_flow_matches_taken_and_untaken_cycle_counts() {
+        const CONDITIONALS: [(u8, bool, bool); 16] = [
+            (0x20, true, false),
+            (0x28, true, true),
+            (0x30, false, false),
+            (0x38, false, true),
+            (0xC0, true, false),
+            (0xC2, true, false),
+            (0xC4, true, false),
+            (0xC8, true, true),
+            (0xCA, true, true),
+            (0xCC, true, true),
+            (0xD0, false, false),
+            (0xD2, false, false),
+            (0xD4, false, false),
+            (0xD8, false, true),
+            (0xDA, false, true),
+            (0xDC, false, true),
+        ];
+        let mut mismatches = Vec::new();
+
+        for (opcode, tests_zero, set_flag_when_taken) in CONDITIONALS {
+            for taken in [false, true] {
+                let mut flag_register = 0;
+                let flag_set = taken == set_flag_when_taken;
+                if flag_set {
+                    flag_register |= if tests_zero { 0x80 } else { 0x10 };
+                }
+
+                let (mut cpu, mut bus) = setup();
+                cpu.registers.write_u8(Register8::F, flag_register);
+                let expected = match opcode {
+                    0x20 | 0x28 | 0x30 | 0x38 => {
+                        if taken {
+                            3
+                        } else {
+                            2
+                        }
+                    }
+                    0xC0 | 0xC8 | 0xD0 | 0xD8 => {
+                        if taken {
+                            5
+                        } else {
+                            2
+                        }
+                    }
+                    0xC2 | 0xCA | 0xD2 | 0xDA => {
+                        if taken {
+                            4
+                        } else {
+                            3
+                        }
+                    }
+                    _ => {
+                        if taken {
+                            6
+                        } else {
+                            3
+                        }
+                    }
+                };
+                let bytes: &[u8] = if matches!(opcode, 0x20 | 0x28 | 0x30 | 0x38) {
+                    &[opcode, 0]
+                } else {
+                    &[opcode, 0, 0]
+                };
+                run(&mut cpu, &mut bus, &bytes);
+                let actual = cpu.remaining_cycles + 1;
+                if actual != expected {
+                    mismatches.push(format!(
+                        "opcode 0x{opcode:02X}, taken={taken}: expected {expected}, got {actual}"
+                    ));
+                }
+            }
+        }
+
+        assert!(
+            mismatches.is_empty(),
+            "conditional instruction cycle mismatches:\n{}",
+            mismatches.join("\n")
+        );
     }
 
     #[test]
@@ -1540,7 +1753,7 @@ mod tests {
         cpu.registers.set_flag(Flag::Zero);
         run(&mut cpu, &mut bus, &[0xC0]);
         assert_eq!(cpu.pc, TEST_PC + 1);
-        assert_cycles(&cpu, 4);
+        assert_cycles(&cpu, 2);
 
         let (mut cpu, mut bus) = setup();
         cpu.registers.write_u16(Register16::SP, TEST_DATA);
@@ -1555,10 +1768,18 @@ mod tests {
     #[test]
     fn accumulator_rotates_and_cb_rotates_have_distinct_zero_flag_behavior() {
         let (mut cpu, mut bus) = setup();
-        cpu.registers.write_u8(Register8::A, 0x80);
+        cpu.registers.write_u8(Register8::A, 0);
         run(&mut cpu, &mut bus, &[0x07]);
-        assert_eq!(cpu.registers.read_u8(Register8::A), 1);
-        assert_eq!(flags(&cpu), (false, false, false, true));
+        assert_eq!(cpu.registers.read_u8(Register8::A), 0);
+        assert_eq!(flags(&cpu), (false, false, false, false));
+        assert_cycles(&cpu, 1);
+
+        let (mut cpu, mut bus) = setup();
+        cpu.registers.write_u8(Register8::A, 0);
+        run_cb(&mut cpu, &mut bus, 0x07);
+        assert_eq!(cpu.registers.read_u8(Register8::A), 0);
+        assert_eq!(flags(&cpu), (true, false, false, false));
+        assert_cycles(&cpu, 2);
 
         let (mut cpu, mut bus) = setup();
         cpu.registers.write_u8(Register8::B, 0x80);

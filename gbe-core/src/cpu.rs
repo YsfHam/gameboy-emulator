@@ -13,6 +13,7 @@ pub struct Cpu {
     ime_enable_countdown: Option<u8>,
     halt: bool,
     halt_bug: bool,
+    hang: bool,
 }
 
 impl Cpu {
@@ -26,10 +27,14 @@ impl Cpu {
             ime_enable_countdown: None,
             halt: false,
             halt_bug: false,
+            hang: false,
         }
     }
 
     pub fn clock(&mut self, bus: &mut Bus) {
+
+        if self.hang { return; }
+
         if self.remaining_cycles == 0 {
             self.handle_interrupts();
             if self.halt {
@@ -64,6 +69,7 @@ impl Cpu {
 }
 
 
+#[derive(Debug, Copy, Clone)]
 pub enum ConditionCode {
     Z, NZ, C, NC
 }
@@ -374,6 +380,17 @@ impl Cpu {
                 let alu_cycles = Self::alu_cycles(&addressing_mode);
                 self.xor(value, alu_cycles)
             },
+            Instruction::Prefixed => {
+                self.prefixed_instruction = true;
+                ExecutionResult {
+                    machine_cycles: 1,
+                    flags_update: Default::default()
+                }
+            },
+            Instruction::Illegal => {
+                self.hang = true;
+                return;
+            }
         };
 
         self.remaining_cycles = result.machine_cycles;

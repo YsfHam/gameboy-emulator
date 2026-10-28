@@ -1,4 +1,3 @@
-
 use crate::cpu::{
     registers::{Register16, Register8},
     ConditionCode,
@@ -68,7 +67,7 @@ pub enum AddressingMode {
     IndirectInc(Register16),
     IndirectDec(Register16),
     IndirectImmH,
-    CarryH,
+    RegCIndirect,
     Immediate8,
 }
 
@@ -237,7 +236,7 @@ impl Instruction {
             ),
             0xE1 => Self::Pop(Register16::HL),
             0xE2 => Self::Ld8(
-                AddressingMode::CarryH,
+                AddressingMode::RegCIndirect,
                 AddressingMode::Register(Register8::A),
             ),
             0xE5 => Self::Push(Register16::HL),
@@ -258,7 +257,7 @@ impl Instruction {
             0xF1 => Self::Pop(Register16::AF),
             0xF2 => Self::Ld8(
                 AddressingMode::Register(Register8::A),
-                AddressingMode::CarryH,
+                AddressingMode::RegCIndirect,
             ),
             0xF3 => Self::Di,
             0xF5 => Self::Push(Register16::AF),

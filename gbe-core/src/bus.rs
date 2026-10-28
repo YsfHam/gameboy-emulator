@@ -8,6 +8,15 @@ pub struct Bus {
 }
 
 impl Bus {
+    pub(crate) fn new() -> Self {
+        Self {
+            vram: Ram8Kib::new(),
+            wram1: Ram4Kib::new(),
+            wram2: Ram4Kib::new(),
+            hram: Ram::new(),
+        }
+    }
+
     pub fn read_u8(&self, addr: u16) -> u8 {
         if (VRAM_MEM_START..=VRAM_MEM_END).contains(&addr) {
             self.vram.read_u8(addr - VRAM_MEM_START)

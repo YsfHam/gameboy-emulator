@@ -1,7 +1,14 @@
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 #[repr(usize)]
 pub enum Register8 {
-    A = 0, F, B, C, D, E, H, L
+    A = 0,
+    F,
+    B,
+    C,
+    D,
+    E,
+    H,
+    L,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -20,9 +27,8 @@ pub enum Flag {
     Carry = 4,
     HalfCarry,
     Substraction,
-    Zero
+    Zero,
 }
-
 
 pub struct Registers {
     values: [Register; 5],
@@ -31,7 +37,7 @@ pub struct Registers {
 impl Default for Registers {
     fn default() -> Self {
         Self {
-            values: [Register::new(); 5]
+            values: [Register::new(); 5],
         }
     }
 }
@@ -45,7 +51,10 @@ impl Registers {
         self.values[reg as usize].value
     }
 
-    pub fn write_u16(&mut self, reg: Register16, value: u16) {
+    pub fn write_u16(&mut self, reg: Register16, mut value: u16) {
+        if reg == Register16::AF {
+            value = value & 0xFFF0;
+        }
         self.values[reg as usize].value = value;
     }
 
@@ -55,7 +64,10 @@ impl Registers {
         register.get((reg as usize) % 2).unwrap()
     }
 
-    pub fn write_u8(&mut self, reg: Register8, value: u8) {
+    pub fn write_u8(&mut self, reg: Register8, mut value: u8) {
+        if reg == Register8::F {
+            value = value & 0xF0;
+        }
         let reg_index = (reg as usize) / 2;
         let register = &mut self.values[reg_index];
         register.set((reg as usize) % 2, value);
@@ -82,13 +94,11 @@ impl Registers {
     pub fn update_flag(&mut self, flag: Flag, value: bool) {
         if value {
             self.set_flag(flag);
-        }
-        else {
+        } else {
             self.unset_flag(flag);
         }
     }
 }
-
 
 #[derive(Clone, Copy)]
 #[repr(transparent)]
@@ -114,7 +124,7 @@ impl Register {
     fn lo(&self) -> u8 {
         (self.value & 0xFF) as u8
     }
-    
+
     fn set_hi(&mut self, hi: u8) {
         self.value = ((hi as u16) << 8) | self.lo() as u16;
     }
@@ -127,7 +137,7 @@ impl Register {
         match index {
             0 => Some(self.hi()),
             1 => Some(self.lo()),
-            _ => None
+            _ => None,
         }
     }
 
@@ -135,8 +145,7 @@ impl Register {
         match index {
             0 => self.set_hi(value),
             1 => self.set_lo(value),
-            _ => panic!("Index out of bound! index: {}, len: 2", index)
-
+            _ => panic!("Index out of bound! index: {}, len: 2", index),
         }
     }
 }

@@ -1,7 +1,7 @@
 pub fn add_u8(a: u8, b: u8, carry: bool) -> (u8, bool, bool) {
-    let (result, carry) = a.carrying_add(b, carry);
+    let (result, new_carry) = a.carrying_add(b, carry);
     let half_carry = (a & 0xF) + (b & 0xF) + (carry as u8) > 0xF;
-    (result, half_carry, carry)
+    (result, half_carry, new_carry)
 }
 
 pub fn add_u16(a: u16, b: u16) -> (u16, bool, bool) {
@@ -48,7 +48,7 @@ pub fn shift_left(value: u8) -> (u8, bool) {
 
 pub fn rotate_right(value: u8, carry: bool) -> (u8, bool) {
     let new_carry = value & 1 > 0;
-    let result = value >> 1 | ((carry as u8) << 7 );
+    let result = value >> 1 | ((carry as u8) << 7);
 
     (result, new_carry)
 }

@@ -1,17 +1,21 @@
-use crate::{constants::{ECHO_RAM_END, ECHO_RAM_START, HRAM_MEM_END, HRAM_MEM_START, IE_REGISTER, IO_INTERRUPTS, VRAM_MEM_END, VRAM_MEM_START, WRAM_BANK_MEM_END, WRAM_BANK_MEM_START, WRAM_MEM_END, WRAM_MEM_START}, interrupts::InterruptFlags, memory::{Ram, Ram4Kib, Ram8Kib}};
+use crate::{cartridge::Cartridge, constants::{ECHO_RAM_END, ECHO_RAM_START, EXTERNAL_RAM_END, EXTERNAL_RAM_START, HRAM_MEM_END, HRAM_MEM_START, IE_REGISTER, IO_INTERRUPTS, VRAM_MEM_END, VRAM_MEM_START, WRAM_BANK_MEM_END, WRAM_BANK_MEM_START, WRAM_MEM_END, WRAM_MEM_START}, interrupts::InterruptFlags, memory::{Ram, Ram4Kib, Ram8Kib}};
 
 pub struct Bus {
+
+    cartridge: Cartridge,
+
     vram: Ram8Kib,
     wram1: Ram4Kib,
     wram2: Ram4Kib,
-    hram: Ram<126>,
+    hram: Ram<127>,
 
     pub interrupts_flags: InterruptFlags,
 }
 
 impl Bus {
-    pub(crate) fn new() -> Self {
+    pub fn new(cartridge: Cartridge) -> Self {
         Self {
+            cartridge,
             vram: Ram8Kib::new(),
             wram1: Ram4Kib::new(),
             wram2: Ram4Kib::new(),
@@ -21,8 +25,14 @@ impl Bus {
     }
 
     pub fn read_u8(&self, addr: u16) -> u8 {
-        if (VRAM_MEM_START..=VRAM_MEM_END).contains(&addr) {
+        if addr < VRAM_MEM_START {
+            self.cartridge.read_u8(addr)
+        }
+        else if (VRAM_MEM_START..=VRAM_MEM_END).contains(&addr) {
             self.vram.read_u8(addr - VRAM_MEM_START)
+        }
+        else if (EXTERNAL_RAM_START..=EXTERNAL_RAM_END).contains(&addr) {
+            self.cartridge.read_u8(addr)
         }
         else if (WRAM_MEM_START..=WRAM_MEM_END).contains(&addr) {
             self.wram1.read_u8(addr - WRAM_MEM_START)
@@ -43,13 +53,20 @@ impl Bus {
             self.interrupts_flags.interrupt_enabled
         }
         else {
-            0
+            0xFF
         }
     }
 
     pub fn write_u8(&mut self, addr: u16, value: u8) {
-        if (VRAM_MEM_START..=VRAM_MEM_END).contains(&addr) {
+        println!("write to address {:x}", addr);
+        if addr < VRAM_MEM_START {
+            self.cartridge.write_u8(addr, value);
+        }
+        else if (VRAM_MEM_START..=VRAM_MEM_END).contains(&addr) {
             self.vram.write_u8(addr - VRAM_MEM_START, value);
+        }
+        else if (EXTERNAL_RAM_START..=EXTERNAL_RAM_END).contains(&addr) {
+            self.cartridge.write_u8(addr, value)
         }
         else if (WRAM_MEM_START..=WRAM_MEM_END).contains(&addr) {
             self.wram1.write_u8(addr - WRAM_MEM_START, value);

@@ -22,9 +22,13 @@ pub struct Cpu {
 
 impl Cpu {
     pub fn new() -> Self {
+        Self::with_entry_point(0)
+    }
+
+    pub fn with_entry_point(entry_point: u16) -> Self {
         Self {
             registers: Registers::new(),
-            pc: 0,
+            pc: entry_point,
             remaining_cycles: 0,
             prefixed_instruction: false,
             ime: false,
@@ -46,6 +50,7 @@ impl Cpu {
                     return;
                 }
                 let instruction = self.fetch_instruction(bus);
+                println!("[pc = {:06x}] Instruction {instruction:?}", self.pc - 1);
                 self.execute(bus, instruction);
             }
         }
@@ -1171,14 +1176,16 @@ impl Cpu {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::cartridge::Cartridge;
+
+use super::*;
 
     const TEST_PC: u16 = 0xFF80;
     const TEST_DATA: u16 = 0xC000;
 
     fn setup() -> (Cpu, Bus) {
         let mut cpu = Cpu::new();
-        let bus = Bus::new();
+        let bus = Bus::new(Cartridge::dummy());
         cpu.pc = TEST_PC;
         cpu.registers.write_u16(Register16::SP, 0xD000);
         (cpu, bus)

@@ -1,4 +1,16 @@
 
+// Cartridge
+pub const CARTRIDGE_BANK_00_START: u16 = 0x0000;
+pub const CARTRIDGE_BANK_00_END: u16 = 0x3FFF;
+
+pub const CARTRIDGE_BANK_01NN_START: u16 = 0x4000;
+pub const CARTRIDGE_BANK_01NN_END: u16 = 0x7FFF;
+
+// External RAM
+pub const EXTERNAL_RAM_START: u16 = 0xA000;
+pub const EXTERNAL_RAM_END: u16 = 0xBFFF;
+
+
 // VRAM
 pub const VRAM_MEM_START: u16 = 0x8000;
 pub const VRAM_MEM_END: u16 = 0x9FFF;

@@ -4,4 +4,4 @@ pub mod memory;
 pub mod interrupts;
 pub mod constants;
 pub mod cartridge;
-pub mod mcb;
+pub mod mbc;

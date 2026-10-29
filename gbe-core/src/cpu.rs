@@ -99,6 +99,7 @@ impl Cpu {
             self.stack_push(bus, self.pc);
             self.pc = addr;
             self.remaining_cycles = 5;
+            bus.interrupts_flags.disable_interrupt(interrupt);
             true
         }
         else {

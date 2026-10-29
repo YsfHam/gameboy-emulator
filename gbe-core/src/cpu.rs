@@ -1,9 +1,7 @@
 use crate::{
-    bus::Bus,
-    cpu::{
-        instruction::{AddressingMode, AddressingMode16, Instruction},
-        registers::{Flag, Register16, Register8, Registers},
-    },
+    bus::Bus, cpu::{
+        instruction::{AddressingMode, AddressingMode16, Instruction}, registers::{Flag, Register8, Register16, Registers},
+    }, interrupts::Interrupt,
 };
 
 mod helpers;
@@ -43,23 +41,44 @@ impl Cpu {
         }
 
         if self.remaining_cycles == 0 {
-            self.handle_interrupts();
-            if self.halt {
-                return;
+            if !self.handle_interrupts(bus) {
+                if self.halt {
+                    return;
+                }
+                let instruction = self.fetch_instruction(bus);
+                self.execute(bus, instruction);
             }
-            let instruction = self.fetch_instruction(bus);
-            self.execute(bus, instruction);
         }
         self.remaining_cycles = self.remaining_cycles.saturating_sub(1);
     }
 
-    fn handle_interrupts(&mut self) {
+    fn handle_interrupts(&mut self, bus: &mut Bus) -> bool {
         self.set_ime();
-        let interrupt_occured = false;
-        self.halt &= !interrupt_occured;
-        self.halt_bug = self.halt && !self.ime && interrupt_occured;
-        if self.ime && interrupt_occured {
-            todo!("Run interrupts");
+        let interrupt_pending = bus.interrupts_flags.any_interrupt_pending();
+        self.halt &= !interrupt_pending;
+        if self.ime && interrupt_pending {
+            self.ime = false;
+            if self.dispatch_interrupt_handler(Interrupt::VBlank, bus) {
+                true
+            }
+            else if self.dispatch_interrupt_handler(Interrupt::LCD, bus) {
+                true
+            }
+            else if self.dispatch_interrupt_handler(Interrupt::Timer, bus) {
+                true
+            }
+            else if self.dispatch_interrupt_handler(Interrupt::Serial, bus) {
+                true
+            }
+            else if self.dispatch_interrupt_handler(Interrupt::Joypad, bus) {
+                true
+            }
+            else {
+                false
+            }
+        }
+        else {
+            false
         }
     }
 
@@ -71,6 +90,19 @@ impl Cpu {
             }
             Some(n) => self.ime_enable_countdown = Some(n - 1),
             None => (),
+        }
+    }
+
+    fn dispatch_interrupt_handler(&mut self, interrupt: Interrupt, bus: &mut Bus) -> bool {
+        if bus.interrupts_flags.is_interrupt_pending(interrupt) {
+            let addr = interrupt.handler_addr();
+            self.stack_push(bus, self.pc);
+            self.pc = addr;
+            self.remaining_cycles = 5;
+            true
+        }
+        else {
+            false
         }
     }
 }
@@ -302,7 +334,7 @@ impl Cpu {
             Instruction::Dec16(register16) => self.dec_r16(register16),
             Instruction::Di => self.di(),
             Instruction::Ei => self.ei(),
-            Instruction::Halt => self.halt(),
+            Instruction::Halt => self.halt(bus.interrupts_flags.any_interrupt_pending()),
             Instruction::Inc8(register8) => self.inc_r8(register8),
             Instruction::IncHL => self.inc_hl(bus),
             Instruction::Inc16(register16) => self.inc_r16(register16),
@@ -693,8 +725,9 @@ impl Cpu {
         }
     }
 
-    fn halt(&mut self) -> ExecutionResult {
-        self.halt = true;
+    fn halt(&mut self, interrupt_pending: bool) -> ExecutionResult {
+        self.halt = !interrupt_pending;
+        self.halt_bug = !self.ime && interrupt_pending;
         ExecutionResult {
             machine_cycles: 1,
             flags_update: Default::default(),

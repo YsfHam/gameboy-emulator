@@ -20,3 +20,12 @@ pub const ECHO_RAM_END: u16 = 0xFDFF;
 
 pub const HRAM_MEM_START: u16 = 0xFF80;
 pub const HRAM_MEM_END: u16 = 0xFFFE;
+
+
+// IO Registers
+
+pub const IO_INTERRUPTS: u16 = 0xFF0F;
+
+
+// Interrupt Enable Register
+pub const IE_REGISTER: u16 = 0xFFFF;

@@ -70,6 +70,7 @@ impl CartridgeInfo {
 pub enum CartridgeType {
     Rom,
     MBC1,
+    MBC1Ram,
 }
 
 impl From<u8> for CartridgeType {
@@ -77,6 +78,7 @@ impl From<u8> for CartridgeType {
         match value {
             0x00 => Self::Rom,
             0x01 => Self::MBC1,
+            0x02 => Self::MBC1Ram,
             _ => unimplemented!("Unknown value for Cartridge type 0x{value:02x}")
         }
     }
@@ -112,6 +114,7 @@ impl Cartridge {
         match info.cart_type {
             CartridgeType::Rom => Box::new(RomMBC::new(rom)),
             CartridgeType::MBC1 => Box::new(MBC1::new(rom, info)),
+            CartridgeType::MBC1Ram => Box::new(MBC1::new(rom, info)),
         }
     }
 

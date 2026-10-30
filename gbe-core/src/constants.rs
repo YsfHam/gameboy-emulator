@@ -38,7 +38,6 @@ pub const HRAM_MEM_END: u16 = 0xFFFE;
 pub const DIV_REGISTER: u16 = 0xFF04;
 pub const IO_INTERRUPTS: u16 = 0xFF0F;
 pub const SERIAL_SB: u16 = 0xFF01;
-pub const SERIAL_SC: u16 = 0xFF02;
 
 // Timers
 pub const TIMA: u16 = 0xFF05;

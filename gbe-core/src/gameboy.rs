@@ -1,4 +1,6 @@
-use crate::{bus::Bus, cartridge::Cartridge, cpu::Cpu};
+use std::{cell::RefCell, rc::Rc};
+
+use crate::{bus::Bus, cartridge::Cartridge, cpu::Cpu, serial::SerialDevice};
 
 
 
@@ -18,5 +20,13 @@ impl Gameboy {
     pub fn clock(&mut self) {
         self.cpu.clock(&mut self.bus);
         self.bus.clock();
+    }
+
+    pub fn plug_serial_device<SD: SerialDevice + 'static>(&mut self, serial_device: SD) -> Rc<RefCell<SD>> {
+        self.bus.plug_serial_device(serial_device)
+    } 
+
+    pub fn remove_serial_device(&mut self) {
+        self.bus.remove_serial_device();
     }
 }

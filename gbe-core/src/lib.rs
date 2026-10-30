@@ -7,3 +7,4 @@ pub mod cartridge;
 pub mod mbc;
 pub mod gameboy;
 pub mod timers;
+pub mod serial;

@@ -1,4 +1,6 @@
-use crate::{cartridge::Cartridge, constants::{DIV_REGISTER, ECHO_RAM_END, ECHO_RAM_START, EXTERNAL_RAM_END, EXTERNAL_RAM_START, HRAM_MEM_END, HRAM_MEM_START, IE_REGISTER, IO_INTERRUPTS, SERIAL_SB, SERIAL_SC, TAC, TIMA, TMA, VRAM_MEM_END, VRAM_MEM_START, WRAM_BANK_MEM_END, WRAM_BANK_MEM_START, WRAM_MEM_END, WRAM_MEM_START}, interrupts::{Interrupt, InterruptFlags}, memory::{Ram, Ram4Kib, Ram8Kib}, timers::Timers};
+use std::{cell::RefCell, rc::Rc};
+
+use crate::{cartridge::Cartridge, constants::{DIV_REGISTER, ECHO_RAM_END, ECHO_RAM_START, EXTERNAL_RAM_END, EXTERNAL_RAM_START, HRAM_MEM_END, HRAM_MEM_START, IE_REGISTER, IO_INTERRUPTS, SERIAL_SB, TAC, TIMA, TMA, VRAM_MEM_END, VRAM_MEM_START, WRAM_BANK_MEM_END, WRAM_BANK_MEM_START, WRAM_MEM_END, WRAM_MEM_START}, interrupts::{Interrupt, InterruptFlags}, memory::{Ram, Ram4Kib, Ram8Kib}, serial::SerialDevice, timers::Timers};
 
 pub struct Bus {
 
@@ -12,6 +14,9 @@ pub struct Bus {
     div_register: u16,
     timers: Timers,
 
+
+    serial: Option<Rc<RefCell<dyn SerialDevice>>>,
+
     pub interrupts_flags: InterruptFlags,
 }
 
@@ -24,9 +29,20 @@ impl Bus {
             wram2: Ram4Kib::new(),
             hram: Ram::new(),
             div_register: 0,
+            serial: None,
             timers: Timers::new(),
             interrupts_flags: InterruptFlags::new(),
         }
+    }
+
+    pub fn plug_serial_device<SD: SerialDevice + 'static>(&mut self, serial_device: SD) -> Rc<RefCell<SD>> {
+        let serial_device_ref = Rc::new(RefCell::new(serial_device));
+        self.serial = Some(serial_device_ref.clone());
+        serial_device_ref
+    } 
+
+    pub fn remove_serial_device(&mut self) {
+        self.serial = None;
     }
 
     pub fn read_u8(&self, addr: u16) -> u8 {
@@ -124,9 +140,9 @@ impl Bus {
             self.interrupts_flags.interrupt_requested = value;
         }
         else if addr == SERIAL_SB {
-            print!("{}", value as char);
-        }
-        else if addr == SERIAL_SC {
+            if let Some(serial_device) = &self.serial {
+                serial_device.borrow_mut().write(value);
+            }
         }
         else if addr == IE_REGISTER {
             self.interrupts_flags.interrupt_enabled = value;

@@ -1,20 +1,19 @@
 use std::fs;
 
-use gbe_core::{bus::Bus, cartridge::Cartridge, cpu::Cpu};
+use gbe_core::{cartridge::Cartridge, gameboy::Gameboy};
 
 fn main() {
-    test_cpu("C:\\dev\\gameboy-emulator\\roms\\cpu_instrs.gb");
+    test_cpu("C:\\dev\\gameboy-emulator\\roms\\instr_timing.gb");
 
 }
 
 fn test_cpu(filepath: &str) {
     let bytes = fs::read(filepath).unwrap();
     let cart = Cartridge::from_memory(bytes);
-    let mut bus = Bus::new(cart);
-    let mut cpu = Cpu::with_entry_point(0x100);
+    let mut gameboy = Gameboy::new(cart);
 
 
     loop {
-        cpu.clock(&mut bus);
+        gameboy.clock();
     }
 }

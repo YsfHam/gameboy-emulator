@@ -12,12 +12,12 @@ pub struct Cpu {
     registers: Registers,
     pc: u16,
     remaining_cycles: u8,
-    prefixed_instruction: bool,
     ime: bool,
     ime_enable_countdown: Option<u8>,
     halt: bool,
     halt_bug: bool,
     hang: bool,
+    stop: bool,
 }
 
 impl Cpu {
@@ -38,17 +38,21 @@ impl Cpu {
             registers,
             pc: entry_point,
             remaining_cycles: 0,
-            prefixed_instruction: false,
             ime: false,
             ime_enable_countdown: None,
             halt: false,
             halt_bug: false,
             hang: false,
+            stop: false,
         }
     }
 
     pub fn clock(&mut self, bus: &mut Bus) {
         if self.hang {
+            return;
+        }
+
+        if self.stop {
             return;
         }
 
@@ -74,8 +78,7 @@ impl Cpu {
                 //     bus.read_u8(self.pc+2),
                 //     bus.read_u8(self.pc+3),
                 // );
-                let instruction = self.fetch_instruction(bus);
-                self.execute(bus, instruction);
+                self.next_instruction(bus);
             }
         }
         self.remaining_cycles = self.remaining_cycles.saturating_sub(1);
@@ -128,7 +131,7 @@ impl Cpu {
             self.stack_push(bus, self.pc);
             self.pc = addr;
             self.remaining_cycles = 5;
-            bus.interrupts_flags.disable_interrupt(interrupt);
+            bus.interrupts_flags.acknowledge_interrupt(interrupt);
             true
         }
         else {
@@ -163,10 +166,9 @@ impl Cpu {
         (hi << 8) | lo
     }
 
-    fn fetch_instruction(&mut self, bus: &Bus) -> Instruction {
+    fn fetch_instruction(&mut self, bus: &Bus, prefixed: bool) -> Instruction {
         let opcode = self.fetch_u8(bus);
-        let instruction = Instruction::decode(opcode, self.prefixed_instruction);
-        self.prefixed_instruction = false;
+        let instruction = Instruction::decode(opcode, prefixed);
         instruction
     }
 
@@ -312,8 +314,8 @@ struct ExecutionResult {
 }
 
 impl Cpu {
-    fn execute(&mut self, bus: &mut Bus, instruction: Instruction) {
-        let result = match instruction {
+    fn execute(&mut self, bus: &mut Bus, instruction: Instruction) -> ExecutionResult {
+        match instruction {
             Instruction::Nop => self.nop(),
 
             Instruction::Adc(addressing_mode) => {
@@ -445,20 +447,17 @@ impl Cpu {
                 self.xor(value, alu_cycles)
             }
             Instruction::Prefixed => {
-                self.prefixed_instruction = true;
-                ExecutionResult {
-                    machine_cycles: 1,
-                    flags_update: Default::default(),
-                }
+                let instruction = self.fetch_instruction(bus, true);
+                return self.execute(bus, instruction);
             }
             Instruction::Illegal => {
                 self.hang = true;
-                return;
+                return ExecutionResult {
+                    machine_cycles: 0,
+                    flags_update: Default::default()
+                };
             }
-        };
-
-        self.remaining_cycles = result.machine_cycles;
-        self.update_flags(result.flags_update);
+        }
     }
 
     fn update_flags(&mut self, flags_update: FlagsUpdate) {
@@ -479,6 +478,14 @@ impl Cpu {
         for (flag, value) in flags {
             self.registers.update_flag(flag, value);
         }
+    }
+
+    fn next_instruction(&mut self, bus: &mut Bus) {
+        let instruction = self.fetch_instruction(bus, false);
+        let result = self.execute(bus, instruction);
+
+        self.remaining_cycles = result.machine_cycles;
+        self.update_flags(result.flags_update);
     }
 }
 
@@ -1146,8 +1153,19 @@ impl Cpu {
         }
     }
 
-    fn stop(&mut self, _bus: &Bus) -> ExecutionResult {
-        todo!("Implement stop")
+    fn stop(&mut self, bus: &mut Bus) -> ExecutionResult {
+        // TODO: Stop mode is half written. Complete it when adding joypad input
+        // Current implementation handles the case when no joypad button is pressed
+        if !bus.interrupts_flags.any_interrupt_pending() {
+            self.fetch_u8(bus);
+        }
+        self.stop = true;
+        bus.reset_div_register();
+
+        ExecutionResult {
+            machine_cycles: 1,
+            flags_update: Default::default()
+        }
     }
 
     fn sub(&mut self, value: u8, alu_cycles: u8) -> ExecutionResult {

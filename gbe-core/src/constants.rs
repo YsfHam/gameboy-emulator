@@ -35,11 +35,15 @@ pub const HRAM_MEM_END: u16 = 0xFFFE;
 
 
 // IO Registers
-
+pub const DIV_REGISTER: u16 = 0xFF04;
 pub const IO_INTERRUPTS: u16 = 0xFF0F;
 pub const SERIAL_SB: u16 = 0xFF01;
 pub const SERIAL_SC: u16 = 0xFF02;
 
+// Timers
+pub const TIMA: u16 = 0xFF05;
+pub const TMA: u16 = 0xFF06;
+pub const TAC: u16 = 0xFF07;
 
 // Interrupt Enable Register
 pub const IE_REGISTER: u16 = 0xFFFF;

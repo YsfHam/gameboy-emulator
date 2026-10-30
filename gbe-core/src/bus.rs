@@ -1,4 +1,4 @@
-use crate::{cartridge::Cartridge, constants::{ECHO_RAM_END, ECHO_RAM_START, EXTERNAL_RAM_END, EXTERNAL_RAM_START, HRAM_MEM_END, HRAM_MEM_START, IE_REGISTER, IO_INTERRUPTS, VRAM_MEM_END, VRAM_MEM_START, WRAM_BANK_MEM_END, WRAM_BANK_MEM_START, WRAM_MEM_END, WRAM_MEM_START}, interrupts::InterruptFlags, memory::{Ram, Ram4Kib, Ram8Kib}};
+use crate::{cartridge::Cartridge, constants::{ECHO_RAM_END, ECHO_RAM_START, EXTERNAL_RAM_END, EXTERNAL_RAM_START, HRAM_MEM_END, HRAM_MEM_START, IE_REGISTER, IO_INTERRUPTS, SERIAL_SB, SERIAL_SC, VRAM_MEM_END, VRAM_MEM_START, WRAM_BANK_MEM_END, WRAM_BANK_MEM_START, WRAM_MEM_END, WRAM_MEM_START}, interrupts::InterruptFlags, memory::{Ram, Ram4Kib, Ram8Kib}};
 
 pub struct Bus {
 
@@ -41,7 +41,13 @@ impl Bus {
             self.wram2.read_u8(addr - WRAM_BANK_MEM_START)
         }
         else if (ECHO_RAM_START..=ECHO_RAM_END).contains(&addr) {
-            self.wram1.read_u8(addr - ECHO_RAM_START)
+            let addr = addr - ECHO_RAM_START;
+            if (addr as usize) < self.wram1.len() {
+                self.wram1.read_u8(addr)
+            }
+            else {
+                self.wram2.read_u8(addr - self.wram1.len() as u16)
+            }
         }
         else if (HRAM_MEM_START..=HRAM_MEM_END).contains(&addr) {
             self.hram.read_u8(addr - HRAM_MEM_START)
@@ -58,7 +64,6 @@ impl Bus {
     }
 
     pub fn write_u8(&mut self, addr: u16, value: u8) {
-        println!("write to address {:x}", addr);
         if addr < VRAM_MEM_START {
             self.cartridge.write_u8(addr, value);
         }
@@ -75,13 +80,24 @@ impl Bus {
             self.wram2.write_u8(addr - WRAM_BANK_MEM_START, value);
         }
         else if (ECHO_RAM_START..=ECHO_RAM_END).contains(&addr) {
-            self.wram1.write_u8(addr - ECHO_RAM_START, value);
+            let addr = addr - ECHO_RAM_START;
+            if (addr as usize) < self.wram1.len() {
+                self.wram1.write_u8(addr, value)
+            }
+            else {
+                self.wram2.write_u8(addr - self.wram1.len() as u16, value)
+            }
         }
         else if (HRAM_MEM_START..=HRAM_MEM_END).contains(&addr) {
             self.hram.write_u8(addr - HRAM_MEM_START, value);
         }
         else if addr == IO_INTERRUPTS {
             self.interrupts_flags.interrupt_requested = value;
+        }
+        else if addr == SERIAL_SB {
+            print!("{}", value as char);
+        }
+        else if addr == SERIAL_SC {
         }
         else if addr == IE_REGISTER {
             self.interrupts_flags.interrupt_enabled = value;

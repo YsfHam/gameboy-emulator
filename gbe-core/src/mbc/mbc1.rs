@@ -15,7 +15,7 @@ impl MBC1 {
     pub fn new(rom: Vec<u8>, cart_info: &CartridgeInfo) -> Self {
         Self {
             enable_ram_register: false,
-            rom_bank_number: 0,
+            rom_bank_number: 1,
             ram_bank_number: 0,
             mode1: false,
             ram: vec![0; cart_info.ram_size as usize * 1024],

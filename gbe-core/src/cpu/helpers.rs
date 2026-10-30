@@ -17,10 +17,11 @@ pub fn sub_u8(a: u8, b: u8) -> (u8, bool, bool) {
 }
 
 pub fn carrying_sub_u8(a: u8, b: u8, carry: bool) -> (u8, bool, bool) {
-    let sub = b as u16 + carry as u16;
+    let carry_in = carry as u16;
+    let sub = b as u16 + carry_in;
     let a_u16 = a as u16;
-    let result = (a_u16 - sub) as u8;
-    let half_carry = (a & 0xF) < (sub & 0xF) as u8;
+    let result = a_u16.wrapping_sub(sub) as u8;
+    let half_carry = (a_u16 & 0xF) < (b & 0xF) as u16 + carry_in;
     let carry = a_u16 < sub;
 
     (result, half_carry, carry)

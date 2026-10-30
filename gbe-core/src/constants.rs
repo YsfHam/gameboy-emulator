@@ -37,6 +37,8 @@ pub const HRAM_MEM_END: u16 = 0xFFFE;
 // IO Registers
 
 pub const IO_INTERRUPTS: u16 = 0xFF0F;
+pub const SERIAL_SB: u16 = 0xFF01;
+pub const SERIAL_SC: u16 = 0xFF02;
 
 
 // Interrupt Enable Register

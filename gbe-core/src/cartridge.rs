@@ -93,7 +93,6 @@ impl Cartridge {
     pub fn from_memory(rom: Vec<u8>) -> Self {
 
         let info = CartridgeInfo::from(rom.as_slice());
-
         let mbc = Self::resolve_mbc(&info, rom);
         Self {
             mbc,

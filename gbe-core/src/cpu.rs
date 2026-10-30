@@ -21,13 +21,21 @@ pub struct Cpu {
 }
 
 impl Cpu {
-    pub fn new() -> Self {
-        Self::with_entry_point(0)
-    }
 
     pub fn with_entry_point(entry_point: u16) -> Self {
+        let mut registers = Registers::new();
+        registers.write_u8(Register8::A, 0x01);
+        registers.write_u8(Register8::F, 0xB0);
+        registers.write_u8(Register8::B, 0x00);
+        registers.write_u8(Register8::C, 0x13);
+        registers.write_u8(Register8::D, 0x00);
+        registers.write_u8(Register8::E, 0xD8);
+        registers.write_u8(Register8::H, 0x01);
+        registers.write_u8(Register8::L, 0x4D);
+        registers.write_u16(Register16::SP, 0xFFFE);
+
         Self {
-            registers: Registers::new(),
+            registers,
             pc: entry_point,
             remaining_cycles: 0,
             prefixed_instruction: false,
@@ -49,8 +57,24 @@ impl Cpu {
                 if self.halt {
                     return;
                 }
+                // println!(
+                //     "A:{:02X} F:{:02X} B:{:02X} C:{:02X} D:{:02X} E:{:02X} H:{:02X} L:{:02X} SP:{:04X} PC:{:04X} PCMEM:{:02X},{:02X},{:02X},{:02X}",
+                //     self.registers.read_u8(Register8::A),
+                //     self.registers.read_u8(Register8::F),
+                //     self.registers.read_u8(Register8::B),
+                //     self.registers.read_u8(Register8::C),
+                //     self.registers.read_u8(Register8::D),
+                //     self.registers.read_u8(Register8::E),
+                //     self.registers.read_u8(Register8::H),
+                //     self.registers.read_u8(Register8::L),
+                //     self.registers.read_u16(Register16::SP),
+                //     self.pc,
+                //     bus.read_u8(self.pc),
+                //     bus.read_u8(self.pc+1),
+                //     bus.read_u8(self.pc+2),
+                //     bus.read_u8(self.pc+3),
+                // );
                 let instruction = self.fetch_instruction(bus);
-                println!("[pc = {:06x}] Instruction {instruction:?}", self.pc - 1);
                 self.execute(bus, instruction);
             }
         }

@@ -9,7 +9,7 @@ impl<const SIZE: usize> Ram<SIZE> {
         }
     }
 
-    pub fn len() -> usize {
+    pub fn len(&self) -> usize {
         SIZE
     }
 

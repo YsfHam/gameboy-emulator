@@ -15,12 +15,11 @@ impl Gameboy {
         Self {
             cpu: Cpu::with_entry_point(0x100),
             bus: Bus::new(cartridge),
-            ppu: Ppu::new()
+            ppu: Ppu::new(),
         }
     }
 
     pub fn next_frame(&mut self) {
-        self.bus.lcd.framebuffer.fill(255);
         loop {
             self.clock();
             if self.ppu.frame_completed() {

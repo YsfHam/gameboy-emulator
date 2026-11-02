@@ -34,8 +34,9 @@ impl OAMEntriesFetcher {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum PpuMode {
+    EmptyFrame,
     FrameStart,
     Mode2Start,
     Mode2,
@@ -50,8 +51,8 @@ enum PpuMode {
 
 pub struct Ppu {
     mode: PpuMode,
-    dots: u16,
-    mode0_dots: u16,
+    dots: u32,
+    mode0_dots: u32,
     frame_completed: bool,
 
     oam_entries_fetcher: OAMEntriesFetcher,
@@ -61,6 +62,7 @@ pub struct Ppu {
     pixel_display: PixelsPrinter,
 
     window_y: bool,
+    lcd_on: bool,
 }
 
 impl Ppu {
@@ -75,17 +77,16 @@ impl Ppu {
             fetcher: PixelsFetcher::new(),
             pixel_display: PixelsPrinter::new(),
             window_y: false,
+            lcd_on: true,
         }
     }
 
     pub fn clock(&mut self, bus: &mut Bus) {
-        if !bus.lcd.get_lcdc_flag(LCDCFlags::LCDPpuEnable) {
-            bus.lcd.reset_ly();
-            self.mode = PpuMode::FrameStart;
+        let on = bus.lcd.get_lcdc_flag(LCDCFlags::LCDPpuEnable);
+        if on != self.lcd_on {
+            self.lcd_on = on;
             self.dots = 0;
-            self.pixel_display.reset();
-            bus.lcd.reset_stat();
-            return;
+            self.mode = if on { PpuMode::FrameStart } else { PpuMode::EmptyFrame };
         }
         for _ in 0..4 {
             if self.dot_clock(bus) {
@@ -113,6 +114,7 @@ impl Ppu {
 
     fn executing_mode(&mut self, bus: &mut Bus) {
         match self.mode {
+            PpuMode::EmptyFrame => self.empty_frame(bus),
             PpuMode::FrameStart => self.frame_start(),
             PpuMode::Mode2Start => self.mode2_start(bus),
             PpuMode::Mode2 => self.mode2(bus),
@@ -120,9 +122,9 @@ impl Ppu {
             PpuMode::Mode3 => self.mode3(bus),
             PpuMode::Mode0 => self.mode0(),
             PpuMode::Mode0End => self.mode0_end(bus),
-            PpuMode::Mode1 => self.mode1(bus),
+            PpuMode::Mode1 => self.mode1(),
             PpuMode::Mode1End => self.mode1_end(bus),
-            PpuMode::FrameEnd => self.frame_end(bus),
+            PpuMode::FrameEnd => self.frame_end(),
         }
     }
 
@@ -132,6 +134,7 @@ impl Ppu {
             PpuMode::Mode1 | PpuMode::Mode1End | PpuMode::FrameEnd => 1,
             PpuMode::FrameStart | PpuMode::Mode2Start | PpuMode::Mode2 => 2,
             PpuMode::Mode3Start | PpuMode::Mode3 => 3,
+            PpuMode::EmptyFrame => unreachable!("Empty frame"),
         }
     }
 
@@ -154,6 +157,18 @@ impl Ppu {
 }
 
 impl Ppu {
+
+    fn empty_frame(&mut self, bus: &mut Bus) {
+        self.frame_completed = false;
+        bus.lcd.reset_ly();
+        self.pixel_display.reset();
+        bus.lcd.reset_stat();
+        self.oam_entries.clear();
+        self.oam_entries_fetcher.current_addr = OAM_START;
+
+        self.mode = PpuMode::FrameEnd;
+        self.dots = 70224;
+    }
 
     fn frame_start(&mut self) {
         self.frame_completed = false;
@@ -226,15 +241,16 @@ impl Ppu {
         }
     }
 
-    fn mode1(&mut self, bus: &mut Bus) {
+    fn mode1(&mut self) {
         self.dots = 456;
         self.mode = PpuMode::Mode1End;
-        bus.interrupts_flags.request_interrupt(Interrupt::VBlank);
     }
 
     fn mode1_end(&mut self, bus: &mut Bus) {
         if bus.lcd.ly() == 153 {
-            self.mode = PpuMode::FrameEnd
+            bus.interrupts_flags.request_interrupt(Interrupt::VBlank);
+            bus.lcd.reset_ly();
+            self.mode = PpuMode::FrameEnd;
         }
         else {
             bus.lcd.increment_ly();
@@ -242,10 +258,9 @@ impl Ppu {
         }
     }
 
-    fn frame_end(&mut self, bus: &mut Bus) {
+    fn frame_end(&mut self) {
         self.frame_completed = true;
-        self.mode = PpuMode::FrameStart;
-        bus.lcd.reset_ly();
+        self.mode = if self.lcd_on { PpuMode::FrameStart } else { PpuMode::EmptyFrame };
     } 
 
 }

@@ -33,12 +33,11 @@ impl MBC for MBC1 {
         }
         else if (CARTRIDGE_BANK_01NN_START..=CARTRIDGE_BANK_01NN_END).contains(&addr) {
             let selected_rom_bank = (self.ram_bank_number << 5) | self.rom_bank_number;
-            let addr = CARTRIDGE_BANK_01NN_START * selected_rom_bank as u16 + (addr - CARTRIDGE_BANK_01NN_START);
+            let addr = CARTRIDGE_BANK_01NN_START as usize * selected_rom_bank as usize + (addr - CARTRIDGE_BANK_01NN_START) as usize;
             self.rom[addr as usize]
         }
         else if (EXTERNAL_RAM_START..=EXTERNAL_RAM_END).contains(&addr) {
-            let addr = self.ram_bank_number as u16 * 8 * 1024 + (addr - EXTERNAL_RAM_START);
-            let addr = addr as usize;
+            let addr = self.ram_bank_number as usize * 8 * 1024 + (addr - EXTERNAL_RAM_START) as usize;
             if self.ram.len() > addr {
                 self.ram[addr]
             }
@@ -72,8 +71,7 @@ impl MBC for MBC1 {
             self.mode1 = value & 1 > 0 && self.cart_rom_banks > 32 && self.cart_ram_banks > 1;
         }
         else if (EXTERNAL_RAM_START..=EXTERNAL_RAM_END).contains(&addr) {
-            let addr = self.ram_bank_number as u16 * EXTERNAL_RAM_START + (addr - EXTERNAL_RAM_START);
-            let addr = addr as usize;
+            let addr = self.ram_bank_number as usize * 8 * 1024 + (addr - EXTERNAL_RAM_START) as usize;
             if self.ram.len() > addr {
                 self.ram[addr] = value;
             }

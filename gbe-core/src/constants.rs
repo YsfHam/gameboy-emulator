@@ -46,3 +46,28 @@ pub const TAC: u16 = 0xFF07;
 
 // Interrupt Enable Register
 pub const IE_REGISTER: u16 = 0xFFFF;
+
+// LCD
+pub const LCD_CONTROL: u16 = 0xFF40;
+pub const LCD_Y: u16 = 0xFF44;
+pub const LCD_Y_COMPARE: u16 = 0xFF45;
+pub const LCD_STATS: u16 = 0xFF41;
+pub const SCROLL_X: u16 = 0xFF43;
+pub const SCROLL_Y: u16 = 0xFF42;
+pub const BGP: u16 = 0xFF47;
+pub const OBP0: u16 = 0xFF48;
+pub const OBP1: u16 = 0xFF49;
+
+pub const SCREEN_WIDTH: u16 = 160;
+pub const SCREEN_HEIGHT: u16 = 144;
+
+
+// OAM DMA
+pub const OAM_DMA_TRANSFER: u16 = 0xFF46;
+pub const OAM_START: u16 = 0xFE00;
+pub const OAM_END: u16 = 0xFE9F;
+
+
+// WINDOW
+pub const WINDOW_X: u16 = 0xFF4B;
+pub const WINDOW_Y: u16 = 0xFF4A;

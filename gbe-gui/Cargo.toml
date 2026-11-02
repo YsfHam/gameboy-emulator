@@ -5,3 +5,4 @@ edition = "2024"
 
 [dependencies]
 gbe-core = { path = "../gbe-core" }
+minifb = "0.29"

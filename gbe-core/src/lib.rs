@@ -8,3 +8,6 @@ pub mod mbc;
 pub mod gameboy;
 pub mod timers;
 pub mod serial;
+pub mod lcd;
+pub mod ppu;
+pub mod window;

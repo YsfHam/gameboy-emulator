@@ -1,14 +1,21 @@
-pub mod cpu;
-pub mod bus;
-pub mod memory;
-pub mod interrupts;
-pub mod constants;
-pub mod cartridge;
-pub mod mbc;
-pub mod gameboy;
-pub mod timers;
-pub mod serial;
-pub mod lcd;
-pub mod ppu;
-pub mod window;
-pub mod events;
+mod cpu;
+mod bus;
+mod memory;
+mod interrupts;
+mod constants;
+mod cartridge;
+mod mbc;
+mod gameboy;
+mod timers;
+mod serial;
+mod lcd;
+mod ppu;
+mod window;
+mod debugging;
+
+pub use cartridge::Cartridge;
+pub use constants::{SCREEN_HEIGHT, SCREEN_WIDTH};
+pub use gameboy::Gameboy;
+
+pub use serial::*;
+pub use debugging::events::*;

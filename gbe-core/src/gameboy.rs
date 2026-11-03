@@ -4,7 +4,7 @@ use crate::{
     bus::Bus,
     cartridge::Cartridge,
     cpu::Cpu,
-    events::{DEFAULT_EVENT_BUFFER_CAPACITY, Event, EventBuffer, EventFilter},
+    debugging::events::{DEFAULT_EVENT_BUFFER_CAPACITY, Event, EventBuffer, EventFilter},
     ppu::Ppu,
     serial::SerialDevice,
 };
@@ -24,7 +24,7 @@ impl Gameboy {
         Self::with_event_capacity(cartridge, DEFAULT_EVENT_BUFFER_CAPACITY)
     }
 
-    pub fn with_event_capacity(cartridge: Cartridge, event_capacity: usize) -> Self {
+    pub(crate) fn with_event_capacity(cartridge: Cartridge, event_capacity: usize) -> Self {
         Self {
             cpu: Cpu::with_entry_point(0x100),
             bus: Bus::new(cartridge),
@@ -34,16 +34,12 @@ impl Gameboy {
         }
     }
 
-    pub fn set_event_filter(&mut self, filter: EventFilter) {
+    pub fn set_filter(&mut self, filter: EventFilter) {
         self.events.set_filter(filter);
     }
 
     pub fn drain_events(&mut self) -> Vec<Event> {
         self.events.drain()
-    }
-
-    pub fn dropped_events(&self) -> u64 {
-        self.events.dropped_events()
     }
 
     pub fn next_frame(&mut self) {

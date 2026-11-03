@@ -1,5 +1,5 @@
 use crate::{
-    bus::Bus, events::{Event, EventBuffer, EventKind}, cpu::{
+    bus::Bus, debugging::events::{Event, EventBuffer, EventKind}, cpu::{
         instruction::{AddressingMode, AddressingMode16, Instruction}, registers::{Flag, Register8, Register16, Registers},
     }, interrupts::Interrupt,
 };
@@ -61,24 +61,6 @@ impl Cpu {
                 if self.halt {
                     return;
                 }
-                
-                // println!(
-                //     "A:{:02X} F:{:02X} B:{:02X} C:{:02X} D:{:02X} E:{:02X} H:{:02X} L:{:02X} SP:{:04X} PC:{:04X} PCMEM:{:02X},{:02X},{:02X},{:02X}",
-                //     self.registers.read_u8(Register8::A),
-                //     self.registers.read_u8(Register8::F),
-                //     self.registers.read_u8(Register8::B),
-                //     self.registers.read_u8(Register8::C),
-                //     self.registers.read_u8(Register8::D),
-                //     self.registers.read_u8(Register8::E),
-                //     self.registers.read_u8(Register8::H),
-                //     self.registers.read_u8(Register8::L),
-                //     self.registers.read_u16(Register16::SP),
-                //     self.pc,
-                //     bus.read_u8(self.pc),
-                //     bus.read_u8(self.pc+1),
-                //     bus.read_u8(self.pc+2),
-                //     bus.read_u8(self.pc+3),
-                // );
                 self.next_instruction(bus, events, cycle);
             }
         }

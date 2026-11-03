@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 
 use crate::{interrupts::Interrupt, ppu::PpuMode};
 
-pub const DEFAULT_EVENT_BUFFER_CAPACITY: usize = 4096;
+pub(crate) const DEFAULT_EVENT_BUFFER_CAPACITY: usize = 4096;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum EventLevel {
@@ -20,7 +20,6 @@ pub enum EventComponent {
     Ppu,
     Timer,
     Cartridge,
-    Serial,
     Interrupts,
     Emulator,
 }
@@ -33,38 +32,36 @@ pub enum EventKind {
     LcdSwitch { on: bool },
     FrameCompleted,
     TimerReloaded { value: u8 },
-    SerialOutput { byte: u8 },
 }
 
 impl EventKind {
-    pub fn component(&self) -> EventComponent {
+    fn component(&self) -> EventComponent {
         match self {
             Self::CpuInstruction { .. } => EventComponent::Cpu,
             Self::InterruptServiced { .. } => EventComponent::Interrupts,
             Self::PpuModeChanged { .. } | Self::FrameCompleted => EventComponent::Ppu,
             Self::TimerReloaded { .. } => EventComponent::Timer,
-            Self::SerialOutput { .. } => EventComponent::Serial,
             Self::LcdSwitch { .. } => EventComponent::Ppu,
         }
     }
 
-    pub fn level(&self) -> EventLevel {
+    fn level(&self) -> EventLevel {
         match self {
-            Self::CpuInstruction { .. } => EventLevel::Trace,
+            Self::CpuInstruction { .. } | Self::FrameCompleted => EventLevel::Trace,
             Self::InterruptServiced { .. } | Self::PpuModeChanged { .. } | Self::TimerReloaded { .. } => EventLevel::Debug,
-            Self::FrameCompleted | Self::SerialOutput { .. } | Self::LcdSwitch { .. } => EventLevel::Info,
+            Self::LcdSwitch { .. } => EventLevel::Info,
         }
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Event {
-    pub cycle: u64,
-    pub kind: EventKind,
+    cycle: u64,
+    kind: EventKind,
 }
 
 impl Event {
-    pub fn new(cycle: u64, kind: EventKind) -> Self {
+    pub(crate) fn new(cycle: u64, kind: EventKind) -> Self {
         Self { cycle, kind }
     }
 
@@ -79,8 +76,8 @@ impl Event {
 
 #[derive(Debug, Clone)]
 pub struct EventFilter {
-    pub minimum_level: EventLevel,
-    pub components: Vec<EventComponent>,
+    minimum_level: EventLevel,
+    components: Vec<EventComponent>,
 }
 
 impl EventFilter {
@@ -109,7 +106,7 @@ impl Default for EventFilter {
 }
 
 #[derive(Debug)]
-pub struct EventBuffer {
+pub(crate) struct EventBuffer {
     events: VecDeque<Event>,
     capacity: usize,
     filter: EventFilter,
@@ -117,7 +114,7 @@ pub struct EventBuffer {
 }
 
 impl EventBuffer {
-    pub fn new(capacity: usize, filter: EventFilter) -> Self {
+    pub(crate) fn new(capacity: usize, filter: EventFilter) -> Self {
         Self {
             events: VecDeque::with_capacity(capacity),
             capacity,
@@ -126,11 +123,11 @@ impl EventBuffer {
         }
     }
 
-    pub fn set_filter(&mut self, filter: EventFilter) {
+    pub(crate) fn set_filter(&mut self, filter: EventFilter) {
         self.filter = filter;
     }
 
-    pub fn push(&mut self, event: Event) {
+    pub(crate) fn push(&mut self, event: Event) {
         if !self.filter.accepts(&event) {
             return;
         }
@@ -141,11 +138,7 @@ impl EventBuffer {
         self.events.push_back(event);
     }
 
-    pub fn drain(&mut self) -> Vec<Event> {
+    pub(crate) fn drain(&mut self) -> Vec<Event> {
         self.events.drain(..).collect()
-    }
-
-    pub fn dropped_events(&self) -> u64 {
-        self.dropped_events
     }
 }

@@ -1,7 +1,8 @@
 use std::{env::args, fs};
 
-use gbe_core::{cartridge::Cartridge, constants::{SCREEN_HEIGHT, SCREEN_WIDTH}, gameboy::Gameboy, serial::ConsoleSerialDevice};
+use gbe_core::{Cartridge, ConsoleSerialDevice, Gameboy, SCREEN_HEIGHT, SCREEN_WIDTH};
 use minifb::{Key, Window, WindowOptions};
+
 const SCALE: usize = 4;
 const WIDTH: usize = SCREEN_WIDTH as usize * SCALE;
 const HEIGHT: usize = SCREEN_HEIGHT as usize * SCALE;
@@ -47,8 +48,12 @@ fn main() {
                     3 => 0x0f380f,
                     _ => 0xff00ff, // magenta = unwritten pixel
                 };
+            }
         }
-}
+
+        for event in gameboy.drain_events() {
+            println!("[{:?}] - [{:?}] - {event:?}", event.level(), event.component());
+        }
 
         // We unwrap here as we want this code to exit if it fails. Real applications may want to handle this in a different way
         window

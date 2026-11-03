@@ -1,7 +1,7 @@
 use crate::constants::{CARTRIDGE_BANK_00_START, CARTRIDGE_BANK_01NN_END};
 
 
-pub mod mbc1;
+pub(crate) mod mbc1;
 
 pub trait MBC {
     fn read(&self, addr: u16) -> u8;

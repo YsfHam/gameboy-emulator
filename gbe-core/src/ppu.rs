@@ -1,4 +1,4 @@
-use crate::{bus::Bus, constants::{OAM_END, OAM_START}, events::{Event, EventBuffer, EventKind}, interrupts::Interrupt, lcd::LCDCFlags, ppu::{fetcher::{FetcherData, PixelsFetcher}, pixels::PixelsPrinter}};
+use crate::{bus::Bus, constants::{OAM_END, OAM_START}, debugging::events::{Event, EventBuffer, EventKind}, interrupts::Interrupt, lcd::LCDCFlags, ppu::{fetcher::{FetcherData, PixelsFetcher}, pixels::PixelsPrinter}};
 
 mod fetcher;
 mod pixels;
@@ -114,6 +114,7 @@ impl Ppu {
         while self.dots == 0 {
             self.executing_mode(bus, events, cycle);
             if self.frame_completed {
+                events.push(Event::new(cycle, EventKind::FrameCompleted));
                 return true;
             }
         }
@@ -125,7 +126,6 @@ impl Ppu {
 
     fn executing_mode(&mut self, bus: &mut Bus, events: &mut EventBuffer, cycle: u64) {
         let previous_mode = self.mode;
-        let frame_was_completed = self.frame_completed;
         match self.mode {
             PpuMode::EmptyFrame => self.empty_frame(bus),
             PpuMode::FrameStart => self.frame_start(),
@@ -147,9 +147,6 @@ impl Ppu {
                     ly: bus.lcd.ly(),
                 },
             ));
-        }
-        if !frame_was_completed && self.frame_completed {
-            events.push(Event::new(cycle, EventKind::FrameCompleted));
         }
     }
 

@@ -2,9 +2,9 @@ use crate::mbc::{MBC, RomMBC, mbc1::MBC1};
 
 #[derive(Debug, Clone)]
 pub struct CartridgeInfo {
-    pub title: String,
+    _title: String,
     pub cart_type: CartridgeType,
-    pub rom_size: u32,
+    _rom_size: u32,
     pub rom_banks: u8,
     pub ram_size: u32,
     pub ram_banks: u8,
@@ -18,9 +18,9 @@ impl From<&[u8]> for CartridgeInfo {
         let (ram_size, ram_banks) = Self::parse_ram_size(rom);
 
         Self {
-            title,
+            _title: title,
             cart_type,
-            rom_size,
+            _rom_size: rom_size,
             rom_banks,
             ram_size,
             ram_banks,
@@ -89,7 +89,6 @@ impl From<u8> for CartridgeType {
 
 pub struct Cartridge {
     mbc: Box<dyn MBC>,
-    pub info: CartridgeInfo,
 }
 
 impl Cartridge {
@@ -98,17 +97,14 @@ impl Cartridge {
 
         let info = CartridgeInfo::from(rom.as_slice());
         let mbc = Self::resolve_mbc(&info, rom);
-        Self {
-            mbc,
-            info
-        }
+        Self { mbc }
     }
 
-    pub fn read_u8(&self, addr: u16) -> u8 {
+    pub(crate) fn read_u8(&self, addr: u16) -> u8 {
         self.mbc.read(addr)
     }
 
-    pub fn write_u8(&mut self, addr: u16, value: u8) {
+    pub(crate) fn write_u8(&mut self, addr: u16, value: u8) {
         self.mbc.write(addr, value);
     }
 

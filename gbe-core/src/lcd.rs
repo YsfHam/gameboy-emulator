@@ -33,7 +33,7 @@ impl LCD {
             control: 0x91,
             lcd_y: 0,
             lcd_y_cp: 0,
-            stats: 0b0010111,
+            stats: 0,
             scy: 0,
             scx: 0,
             bgp: 0,

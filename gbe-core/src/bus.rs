@@ -98,7 +98,7 @@ impl Bus {
             self.timers.tac
         }
         else if addr == IO_INTERRUPTS {
-            self.interrupts_flags.interrupt_requested
+            self.interrupts_flags.interrupt_requested | 0xE0
         }
         else if addr == IE_REGISTER {
             self.interrupts_flags.interrupt_enabled

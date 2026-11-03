@@ -34,7 +34,7 @@ impl InterruptFlags {
     }
 
     pub fn any_interrupt_pending(&self) -> bool {
-        self.interrupt_enabled & self.interrupt_requested > 0
+        self.interrupt_enabled & self.interrupt_requested & 0x1F > 0
     }
 
     pub fn is_interrupt_pending(&self, interrupt: Interrupt) -> bool {

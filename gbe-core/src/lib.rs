@@ -11,3 +11,4 @@ pub mod serial;
 pub mod lcd;
 pub mod ppu;
 pub mod window;
+pub mod events;

@@ -1,5 +1,5 @@
 use crate::{
-    bus::Bus, cpu::{
+    bus::Bus, events::{Event, EventBuffer, EventKind}, cpu::{
         instruction::{AddressingMode, AddressingMode16, Instruction}, registers::{Flag, Register8, Register16, Registers},
     }, interrupts::Interrupt,
 };
@@ -47,7 +47,7 @@ impl Cpu {
         }
     }
 
-    pub fn clock(&mut self, bus: &mut Bus) {
+    pub fn clock(&mut self, bus: &mut Bus, events: &mut EventBuffer, cycle: u64) {
         if self.hang {
             return;
         }
@@ -57,7 +57,7 @@ impl Cpu {
         }
 
         if self.remaining_cycles == 0 {
-            if !self.handle_interrupts(bus) {
+            if !self.handle_interrupts(bus, events, cycle) {
                 if self.halt {
                     return;
                 }
@@ -79,31 +79,31 @@ impl Cpu {
                 //     bus.read_u8(self.pc+2),
                 //     bus.read_u8(self.pc+3),
                 // );
-                self.next_instruction(bus);
+                self.next_instruction(bus, events, cycle);
             }
         }
         self.remaining_cycles = self.remaining_cycles.saturating_sub(1);
     }
 
-    fn handle_interrupts(&mut self, bus: &mut Bus) -> bool {
+    fn handle_interrupts(&mut self, bus: &mut Bus, events: &mut EventBuffer, cycle: u64) -> bool {
         self.set_ime();
         let interrupt_pending = bus.interrupts_flags.any_interrupt_pending();
         self.halt &= !interrupt_pending;
         if self.ime && interrupt_pending {
             self.ime = false;
-            if self.dispatch_interrupt_handler(Interrupt::VBlank, bus) {
+            if self.dispatch_interrupt_handler(Interrupt::VBlank, bus, events, cycle) {
                 true
             }
-            else if self.dispatch_interrupt_handler(Interrupt::LCD, bus) {
+            else if self.dispatch_interrupt_handler(Interrupt::LCD, bus, events, cycle) {
                 true
             }
-            else if self.dispatch_interrupt_handler(Interrupt::Timer, bus) {
+            else if self.dispatch_interrupt_handler(Interrupt::Timer, bus, events, cycle) {
                 true
             }
-            else if self.dispatch_interrupt_handler(Interrupt::Serial, bus) {
+            else if self.dispatch_interrupt_handler(Interrupt::Serial, bus, events, cycle) {
                 true
             }
-            else if self.dispatch_interrupt_handler(Interrupt::Joypad, bus) {
+            else if self.dispatch_interrupt_handler(Interrupt::Joypad, bus, events, cycle) {
                 true
             }
             else {
@@ -126,13 +126,20 @@ impl Cpu {
         }
     }
 
-    fn dispatch_interrupt_handler(&mut self, interrupt: Interrupt, bus: &mut Bus) -> bool {
+    fn dispatch_interrupt_handler(
+        &mut self,
+        interrupt: Interrupt,
+        bus: &mut Bus,
+        events: &mut EventBuffer,
+        cycle: u64,
+    ) -> bool {
         if bus.interrupts_flags.is_interrupt_pending(interrupt) {
             let addr = interrupt.handler_addr();
             self.stack_push(bus, self.pc);
             self.pc = addr;
             self.remaining_cycles = 5;
             bus.interrupts_flags.acknowledge_interrupt(interrupt);
+            events.push(Event::new(cycle, EventKind::InterruptServiced { interrupt }));
             true
         }
         else {
@@ -167,10 +174,10 @@ impl Cpu {
         (hi << 8) | lo
     }
 
-    fn fetch_instruction(&mut self, bus: &Bus, prefixed: bool) -> Instruction {
+    fn fetch_instruction(&mut self, bus: &Bus, prefixed: bool) -> (Instruction, u8) {
         let opcode = self.fetch_u8(bus);
         let instruction = Instruction::decode(opcode, prefixed);
-        instruction
+        (instruction, opcode)
     }
 
     fn addressing_mode_read(&mut self, bus: &Bus, mode: AddressingMode) -> u8 {
@@ -448,7 +455,7 @@ impl Cpu {
                 self.xor(value, alu_cycles)
             }
             Instruction::Prefixed => {
-                let instruction = self.fetch_instruction(bus, true);
+                let (instruction, _) = self.fetch_instruction(bus, true);
                 return self.execute(bus, instruction);
             }
             Instruction::Illegal => {
@@ -481,8 +488,10 @@ impl Cpu {
         }
     }
 
-    fn next_instruction(&mut self, bus: &mut Bus) {
-        let instruction = self.fetch_instruction(bus, false);
+    fn next_instruction(&mut self, bus: &mut Bus, events: &mut EventBuffer, cycle: u64) {
+        let pc = self.pc;
+        let (instruction, opcode) = self.fetch_instruction(bus, false);
+        events.push(Event::new(cycle, EventKind::CpuInstruction { pc, opcode }));
         let result = self.execute(bus, instruction);
 
         self.remaining_cycles = result.machine_cycles;

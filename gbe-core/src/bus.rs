@@ -1,6 +1,6 @@
 use std::{cell::RefCell, rc::Rc};
 
-use crate::{cartridge::Cartridge, constants::{BGP, DIV_REGISTER, ECHO_RAM_END, ECHO_RAM_START, EXTERNAL_RAM_END, EXTERNAL_RAM_START, HRAM_MEM_END, HRAM_MEM_START, IE_REGISTER, IO_INTERRUPTS, LCD_CONTROL, LCD_STATS, LCD_Y, LCD_Y_COMPARE, OAM_DMA_TRANSFER, OAM_END, OAM_START, OBP0, OBP1, SCROLL_X, SCROLL_Y, SERIAL_SB, TAC, TIMA, TMA, VRAM_MEM_END, VRAM_MEM_START, WINDOW_X, WINDOW_Y, WRAM_BANK_MEM_END, WRAM_BANK_MEM_START, WRAM_MEM_END, WRAM_MEM_START}, interrupts::{Interrupt, InterruptFlags}, lcd::LCD, memory::{Ram, Ram4Kib, Ram8Kib}, serial::SerialDevice, timers::Timers, window::Window};
+use crate::{cartridge::Cartridge, constants::{BGP, DIV_REGISTER, ECHO_RAM_END, ECHO_RAM_START, EXTERNAL_RAM_END, EXTERNAL_RAM_START, HRAM_MEM_END, HRAM_MEM_START, IE_REGISTER, IO_INTERRUPTS, LCD_CONTROL, LCD_STATS, LCD_Y, LCD_Y_COMPARE, OAM_DMA_TRANSFER, OAM_END, OAM_START, OBP0, OBP1, SCROLL_X, SCROLL_Y, SERIAL_SB, TAC, TIMA, TMA, VRAM_MEM_END, VRAM_MEM_START, WINDOW_X, WINDOW_Y, WRAM_BANK_MEM_END, WRAM_BANK_MEM_START, WRAM_MEM_END, WRAM_MEM_START}, events::{Event, EventBuffer, EventKind}, interrupts::{Interrupt, InterruptFlags}, lcd::LCD, memory::{Ram, Ram4Kib, Ram8Kib}, serial::SerialDevice, timers::Timers, window::Window};
 
 pub struct Bus {
 
@@ -235,19 +235,25 @@ impl Bus {
         self.div_register = 0;
     }
 
-    pub fn clock(&mut self) {
+    pub fn clock(&mut self, events: &mut EventBuffer, cycle: u64) {
         for _ in 0..4 {
-            self.timers_tick();
+            self.timers_tick(events, cycle);
         }
         self.oam_dma_transfer_cycles = 
             self.oam_dma_transfer_cycles
             .saturating_sub(4);
     }
 
-    fn timers_tick(&mut self) {
+    fn timers_tick(&mut self, events: &mut EventBuffer, cycle: u64) {
         let request_interrupt = self.timers.increment_tima(self.div_register);
         if request_interrupt {
             self.interrupts_flags.request_interrupt(Interrupt::Timer);
+            events.push(Event::new(
+                cycle,
+                EventKind::TimerReloaded {
+                    value: self.timers.tima(),
+                },
+            ));
         }
         self.div_register = self.div_register.wrapping_add(1);
     }

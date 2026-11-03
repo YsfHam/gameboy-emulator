@@ -1,4 +1,4 @@
-use crate::{bus::Bus, constants::{OAM_END, OAM_START}, interrupts::Interrupt, lcd::LCDCFlags, ppu::{fetcher::{FetcherData, PixelsFetcher}, pixels::PixelsPrinter}};
+use crate::{bus::Bus, constants::{OAM_END, OAM_START}, events::{Event, EventBuffer, EventKind}, interrupts::Interrupt, lcd::LCDCFlags, ppu::{fetcher::{FetcherData, PixelsFetcher}, pixels::PixelsPrinter}};
 
 mod fetcher;
 mod pixels;
@@ -35,7 +35,7 @@ impl OAMEntriesFetcher {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum PpuMode {
+pub enum PpuMode {
     EmptyFrame,
     FrameStart,
     Mode2Start,
@@ -81,15 +81,26 @@ impl Ppu {
         }
     }
 
-    pub fn clock(&mut self, bus: &mut Bus) {
+    pub fn clock(&mut self, bus: &mut Bus, events: &mut EventBuffer, cycle: u64) {
         let on = bus.lcd.get_lcdc_flag(LCDCFlags::LCDPpuEnable);
         if on != self.lcd_on {
             self.lcd_on = on;
             self.dots = 0;
             self.mode = if on { PpuMode::FrameStart } else { PpuMode::EmptyFrame };
+            events.push(Event::new(
+                cycle,
+                EventKind::LcdSwitch { on: self.lcd_on }
+            ));
+            events.push(Event::new(
+                cycle,
+                EventKind::PpuModeChanged {
+                    mode: self.mode,
+                    ly: bus.lcd.ly(),
+                },
+            ));
         }
         for _ in 0..4 {
-            if self.dot_clock(bus) {
+            if self.dot_clock(bus, events, cycle) {
                 break;
             }
         }
@@ -99,9 +110,9 @@ impl Ppu {
         self.frame_completed
     }
 
-    fn dot_clock(&mut self, bus: &mut Bus) -> bool {
+    fn dot_clock(&mut self, bus: &mut Bus, events: &mut EventBuffer, cycle: u64) -> bool {
         while self.dots == 0 {
-            self.executing_mode(bus);
+            self.executing_mode(bus, events, cycle);
             if self.frame_completed {
                 return true;
             }
@@ -112,7 +123,9 @@ impl Ppu {
         false
     }
 
-    fn executing_mode(&mut self, bus: &mut Bus) {
+    fn executing_mode(&mut self, bus: &mut Bus, events: &mut EventBuffer, cycle: u64) {
+        let previous_mode = self.mode;
+        let frame_was_completed = self.frame_completed;
         match self.mode {
             PpuMode::EmptyFrame => self.empty_frame(bus),
             PpuMode::FrameStart => self.frame_start(),
@@ -125,6 +138,18 @@ impl Ppu {
             PpuMode::Mode1 => self.mode1(),
             PpuMode::Mode1End => self.mode1_end(bus),
             PpuMode::FrameEnd => self.frame_end(),
+        }
+        if self.mode != previous_mode {
+            events.push(Event::new(
+                cycle,
+                EventKind::PpuModeChanged {
+                    mode: self.mode,
+                    ly: bus.lcd.ly(),
+                },
+            ));
+        }
+        if !frame_was_completed && self.frame_completed {
+            events.push(Event::new(cycle, EventKind::FrameCompleted));
         }
     }
 

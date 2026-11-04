@@ -235,7 +235,7 @@ impl Bus {
         self.div_register = 0;
     }
 
-    pub fn clock(&mut self, events: &mut EventBuffer, cycle: u64) {
+    pub(crate) fn clock(&mut self, events: &mut EventBuffer, cycle: u64) {
         for _ in 0..4 {
             self.timers_tick(events, cycle);
         }

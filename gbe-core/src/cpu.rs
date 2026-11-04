@@ -1,14 +1,15 @@
 use crate::{
-    bus::Bus, debugging::events::{Event, EventBuffer, EventKind}, cpu::{
+    CpuSnapshot, bus::Bus, cpu::{
         instruction::{AddressingMode, AddressingMode16, Instruction}, registers::{Flag, Register8, Register16, Registers},
-    }, interrupts::Interrupt,
+    }, debugging::events::{Event, EventBuffer, EventKind}, interrupts::Interrupt,
 };
 
 mod helpers;
 pub mod instruction;
 pub mod registers;
+pub mod snapshot;
 
-pub struct Cpu {
+pub(crate) struct Cpu {
     registers: Registers,
     pc: u16,
     remaining_cycles: u8,
@@ -22,7 +23,7 @@ pub struct Cpu {
 
 impl Cpu {
 
-    pub fn with_entry_point(entry_point: u16) -> Self {
+    pub(crate) fn with_entry_point(entry_point: u16) -> Self {
         let mut registers = Registers::new();
         registers.write_u8(Register8::A, 0x01);
         registers.write_u8(Register8::F, 0xB0);
@@ -47,7 +48,7 @@ impl Cpu {
         }
     }
 
-    pub fn clock(&mut self, bus: &mut Bus, events: &mut EventBuffer, cycle: u64) {
+    pub(crate) fn clock(&mut self, bus: &mut Bus, events: &mut EventBuffer, cycle: u64) {
         if self.hang {
             return;
         }
@@ -65,6 +66,10 @@ impl Cpu {
             }
         }
         self.remaining_cycles = self.remaining_cycles.saturating_sub(1);
+    }
+
+    pub(crate) fn get_snapshot(&self) -> CpuSnapshot {
+        CpuSnapshot::from(self)
     }
 
     fn handle_interrupts(&mut self, bus: &mut Bus, events: &mut EventBuffer, cycle: u64) -> bool {
@@ -156,10 +161,11 @@ impl Cpu {
         (hi << 8) | lo
     }
 
-    fn fetch_instruction(&mut self, bus: &Bus, prefixed: bool) -> (Instruction, u8) {
+    fn fetch_instruction(&mut self, bus: &Bus, prefixed: bool, events: &mut EventBuffer, cycle: u64) -> Instruction {
+        let pc = self.pc;
         let opcode = self.fetch_u8(bus);
-        let instruction = Instruction::decode(opcode, prefixed);
-        (instruction, opcode)
+        events.push(Event::new(cycle, EventKind::CpuInstruction { pc, opcode }));
+        Instruction::decode(opcode, prefixed)
     }
 
     fn addressing_mode_read(&mut self, bus: &Bus, mode: AddressingMode) -> u8 {
@@ -304,7 +310,7 @@ struct ExecutionResult {
 }
 
 impl Cpu {
-    fn execute(&mut self, bus: &mut Bus, instruction: Instruction) -> ExecutionResult {
+    fn execute(&mut self, bus: &mut Bus, instruction: Instruction, events: &mut EventBuffer, cycle: u64) -> ExecutionResult {
         match instruction {
             Instruction::Nop => self.nop(),
 
@@ -437,8 +443,8 @@ impl Cpu {
                 self.xor(value, alu_cycles)
             }
             Instruction::Prefixed => {
-                let (instruction, _) = self.fetch_instruction(bus, true);
-                return self.execute(bus, instruction);
+                let instruction = self.fetch_instruction(bus, true, events, cycle);
+                return self.execute(bus, instruction, events, cycle);
             }
             Instruction::Illegal => {
                 self.hang = true;
@@ -471,10 +477,8 @@ impl Cpu {
     }
 
     fn next_instruction(&mut self, bus: &mut Bus, events: &mut EventBuffer, cycle: u64) {
-        let pc = self.pc;
-        let (instruction, opcode) = self.fetch_instruction(bus, false);
-        events.push(Event::new(cycle, EventKind::CpuInstruction { pc, opcode }));
-        let result = self.execute(bus, instruction);
+        let instruction = self.fetch_instruction(bus, false, events, cycle);
+        let result = self.execute(bus, instruction, events, cycle);
 
         self.remaining_cycles = result.machine_cycles;
         self.update_flags(result.flags_update);

@@ -5,4 +5,4 @@ edition = "2024"
 
 [dependencies]
 gbe-core = { path = "../gbe-core" }
-minifb = "0.29"
+eframe = { version = "0.37.0", default-features = false, features = ["glow", "default_fonts", "system_fonts"]}

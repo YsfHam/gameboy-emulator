@@ -1,15 +1,14 @@
 use std::{cell::RefCell, rc::Rc};
 
 use crate::{
-    bus::Bus,
-    cartridge::Cartridge,
-    cpu::Cpu,
-    debugging::events::{DEFAULT_EVENT_BUFFER_CAPACITY, Event, EventBuffer, EventFilter},
-    ppu::Ppu,
-    serial::SerialDevice,
+    CpuSnapshot, bus::Bus, cartridge::Cartridge, cpu::Cpu, debugging::events::{DEFAULT_EVENT_BUFFER_CAPACITY, Event, EventBuffer, EventFilter}, ppu::Ppu, serial::SerialDevice,
 };
 
-
+#[derive(Clone)]
+pub struct GameboySnapshot<'a> {
+    pub cpu: CpuSnapshot,
+    pub bus: &'a Bus
+}
 
 pub struct Gameboy {
     cpu: Cpu,
@@ -51,6 +50,10 @@ impl Gameboy {
         }
     }
 
+    pub fn frame_completed(&self) -> bool {
+        self.ppu.frame_completed()
+    }
+
     pub fn get_framebuffer(&self) -> &[u8] {
         &self.bus.lcd.framebuffer
     }
@@ -69,5 +72,12 @@ impl Gameboy {
 
     pub fn remove_serial_device(&mut self) {
         self.bus.remove_serial_device();
+    }
+
+    pub fn get_snapshot<'a >(&'a self) -> GameboySnapshot<'a> {
+        GameboySnapshot {
+            cpu: self.cpu.get_snapshot(),
+            bus: &self.bus
+        }
     }
 }

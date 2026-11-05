@@ -3,8 +3,7 @@ use std::fs;
 use eframe::egui::{self, ViewportBuilder};
 use gbe_core::{Cartridge, Gameboy};
 
-use crate::{args::CLIArgs, debugger::DebuggerUi};
-
+use crate::{args::CLIArgs, debugger::{DebuggerUi, common::configure_theme}};
 mod render;
 mod args;
 mod debugger;
@@ -31,7 +30,8 @@ struct GBEmulatorApp {
 }
 
 impl GBEmulatorApp {
-    fn new(_: &eframe::CreationContext<'_>) -> Result<Self, String> {
+    fn new(cc: &eframe::CreationContext<'_>) -> Result<Self, String> {
+        configure_theme(&cc.egui_ctx);
         let args = CLIArgs::parse_args().ok_or("Args are required")?;
         let cart = Cartridge::from_memory(fs::read(args.rom_path).map_err(|err| err.to_string())?);
         let gameboy =  Gameboy::new(cart);

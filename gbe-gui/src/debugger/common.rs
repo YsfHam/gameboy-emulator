@@ -62,17 +62,39 @@ pub fn component_section(ui: &mut egui::Ui, name: &str, body: impl FnOnce(&mut e
         .inner_margin(8.0)
         .show(ui, |ui| {
             let id = ui.make_persistent_id(("debugger_component", name));
-            egui::collapsing_header::CollapsingState::load_with_default_open(ui.ctx(), id, true)
+            let mut state = egui::collapsing_header::CollapsingState::load_with_default_open(
+                ui.ctx(),
+                id,
+                true,
+            );
+            let mut header_clicked = false;
+            let (toggle_response, _, _) = state
                 .show_header(ui, |ui| {
                     ui.set_width(ui.available_width());
-                    ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
-                        ui.label(RichText::new(name).size(12.0).strong().color(ACCENT));
-                    });
+                    let width = ui.available_width();
+                    header_clicked = ui
+                        .add_sized(
+                            [width, 24.0],
+                            egui::Button::new(
+                                RichText::new(name).size(12.0).strong().color(ACCENT),
+                            )
+                            .frame(false),
+                        )
+                        .clicked();
                 })
                 .body(|ui| {
                     ui.add_space(4.0);
                     body(ui);
                 });
+            if header_clicked && !toggle_response.clicked() {
+                state = egui::collapsing_header::CollapsingState::load_with_default_open(
+                    ui.ctx(),
+                    id,
+                    true,
+                );
+                state.toggle(ui);
+                state.store(ui.ctx());
+            }
         });
     ui.add_space(8.0);
 }

@@ -1,8 +1,7 @@
 use gbe_core::disassemble;
 
 use crate::debugger::{
-    DebuggerComponent,
-    common::{self, ACCENT, ACTIVE_BG, CARD_BG, MUTED_TEXT},
+    common::{self, ACCENT, ACTIVE_BG, CARD_BG, MUTED_TEXT}, components::DebuggerComponent,
 };
 
 pub struct CpuDebuggerComponent;
@@ -24,14 +23,14 @@ impl DebuggerComponent for CpuDebuggerComponent {
             .num_columns(4)
             .spacing(eframe::egui::vec2(8.0, 7.0))
             .show(ui, |ui| {
-                common::register_cell(ui, "AF", cpu_snapshot.reg_af);
-                common::register_cell(ui, "BC", cpu_snapshot.reg_bc);
+                common::cell(ui, "AF", &format!("{:04X}", cpu_snapshot.reg_af));
+                common::cell(ui, "BC", &format!("{:04X}", cpu_snapshot.reg_bc));
                 ui.end_row();
-                common::register_cell(ui, "DE", cpu_snapshot.reg_de);
-                common::register_cell(ui, "HL", cpu_snapshot.reg_hl);
+                common::cell(ui, "DE", &format!("{:04X}", cpu_snapshot.reg_de));
+                common::cell(ui, "HL", &format!("{:04X}", cpu_snapshot.reg_hl));
                 ui.end_row();
-                common::register_cell(ui, "SP", cpu_snapshot.sp);
-                common::register_cell(ui, "PC", cpu_snapshot.pc);
+                common::cell(ui, "SP", &format!("{:04X}", cpu_snapshot.sp));
+                common::cell(ui, "PC", &format!("{:04X}", cpu_snapshot.pc));
                 ui.end_row();
             });
 

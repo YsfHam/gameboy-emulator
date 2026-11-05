@@ -18,6 +18,8 @@ pub use constants::{SCREEN_HEIGHT, SCREEN_WIDTH};
 pub use gameboy::{Gameboy, GameboySnapshot};
 pub use cpu::snapshot::CpuSnapshot;
 pub use debugging::disassemble;
+pub use interrupts::Interrupt;
+pub use lcd::LCDCFlags;
 
 pub use serial::*;
 pub use debugging::events::*;

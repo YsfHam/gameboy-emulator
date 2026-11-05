@@ -110,6 +110,15 @@ impl Ppu {
         self.frame_completed
     }
 
+    pub fn reset(&mut self) {
+        self.frame_completed = false;
+        self.pixel_display.reset();
+        self.oam_entries.clear();
+        self.oam_entries_fetcher.current_addr = OAM_START;
+        self.mode = PpuMode::FrameStart;
+        self.dots = 0;
+    }
+
     fn dot_clock(&mut self, bus: &mut Bus, events: &mut EventBuffer, cycle: u64) -> bool {
         while self.dots == 0 {
             self.executing_mode(bus, events, cycle);
@@ -181,12 +190,10 @@ impl Ppu {
 impl Ppu {
 
     fn empty_frame(&mut self, bus: &mut Bus) {
-        self.frame_completed = false;
-        bus.lcd.reset_ly();
-        self.pixel_display.reset();
+        self.reset();
+        
         bus.lcd.reset_stat();
-        self.oam_entries.clear();
-        self.oam_entries_fetcher.current_addr = OAM_START;
+        bus.lcd.reset_ly();
 
         self.mode = PpuMode::FrameEnd;
         self.dots = 70224;

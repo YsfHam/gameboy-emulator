@@ -99,10 +99,10 @@ pub fn component_section(ui: &mut egui::Ui, name: &str, body: impl FnOnce(&mut e
     ui.add_space(8.0);
 }
 
-pub fn register_cell(ui: &mut egui::Ui, name: &str, value: u16) {
+pub fn cell(ui: &mut egui::Ui, name: &str, value: &str) {
     ui.label(RichText::new(name).small().strong().color(MUTED_TEXT));
     ui.label(
-        RichText::new(format!("{value:04X}"))
+        RichText::new(value)
             .monospace()
             .color(ACCENT),
     );
@@ -122,4 +122,16 @@ pub fn state_chip(ui: &mut egui::Ui, name: &str, active: bool) {
         .show(ui, |ui| {
             ui.label(RichText::new(name).small().strong().color(foreground));
         });
+}
+
+pub fn icon(ui: &mut egui::Ui, image: egui::ImageSource, tip: &str, size: egui::Vec2)  -> egui::Response {
+    ui.add(
+        egui::Button::image(
+            egui::Image::new(image)
+            .fit_to_exact_size(size)
+            .alt_text(tip)
+            .tint(ACCENT)
+        )
+    )
+    .on_hover_text(tip)
 }

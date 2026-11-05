@@ -1,10 +1,10 @@
 pub struct Timers {
 
-    tima: u8,
+    pub tima: u8,
     pub tma: u8,
     pub tac: u8,
 
-    pub tima_reload_counter: Option<u8>,
+    tima_reload_counter: Option<u8>,
 
     last_and_value: bool,
 

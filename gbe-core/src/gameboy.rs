@@ -1,7 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
 use crate::{
-    CpuSnapshot, bus::Bus, cartridge::Cartridge, cpu::Cpu, debugging::events::{DEFAULT_EVENT_BUFFER_CAPACITY, Event, EventBuffer, EventFilter}, ppu::Ppu, serial::SerialDevice,
+    CpuSnapshot, EventKind, bus::Bus, cartridge::Cartridge, cpu::Cpu, debugging::events::{DEFAULT_EVENT_BUFFER_CAPACITY, Event, EventBuffer, EventFilter}, ppu::Ppu, serial::SerialDevice,
 };
 
 #[derive(Clone)]
@@ -33,6 +33,14 @@ impl Gameboy {
         }
     }
 
+    pub fn reset(&mut self) {
+        self.cpu = Cpu::with_entry_point(0x100);
+        self.bus.reset();
+        self.ppu.reset();
+        self.events.push(Event::new(self.cycle, EventKind::EmulatorReset));
+        self.cycle = 0;
+    }
+
     pub fn set_filter(&mut self, filter: EventFilter) {
         self.events.set_filter(filter);
     }
@@ -45,6 +53,15 @@ impl Gameboy {
         loop {
             self.clock();
             if self.ppu.frame_completed() {
+                break;
+            }
+        }
+    }
+
+    pub fn next_instruction(&mut self) {
+        loop {
+            self.clock();
+            if self.cpu.remaining_cycles() == 0 {
                 break;
             }
         }

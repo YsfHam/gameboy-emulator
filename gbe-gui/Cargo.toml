@@ -5,4 +5,5 @@ edition = "2024"
 
 [dependencies]
 gbe-core = { path = "../gbe-core" }
-eframe = { version = "0.37.0", default-features = false, features = ["glow", "default_fonts", "system_fonts"]}
+eframe = { version = "0.37.0", default-features = false, features = ["glow", "default_fonts", "system_fonts"] }
+egui_extras = { version = "0.37.0", features = ["svg"] }

@@ -42,6 +42,14 @@ impl InterruptFlags {
         pending & (1 << interrupt as u8) > 0
     }
 
+    pub fn is_interrupt_enabled(&self, interrupt: Interrupt) -> bool {
+        self.interrupt_enabled & (1 << interrupt as u8) > 0
+    }
+
+    pub fn is_interrupt_requested(&self, interrupt: Interrupt) -> bool {
+        self.interrupt_requested & (1 << interrupt as u8) > 0
+    }
+
     pub fn acknowledge_interrupt(&mut self, interrupt: Interrupt) {
         self.interrupt_requested = 
             self.interrupt_requested & !(1 << interrupt as u8);

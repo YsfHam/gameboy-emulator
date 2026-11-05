@@ -68,6 +68,10 @@ impl Cpu {
         self.remaining_cycles = self.remaining_cycles.saturating_sub(1);
     }
 
+    pub(crate) fn remaining_cycles(&self) -> u8 {
+        self.remaining_cycles
+    }
+
     pub(crate) fn get_snapshot(&self) -> CpuSnapshot {
         CpuSnapshot::from(self)
     }

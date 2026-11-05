@@ -1,65 +1,52 @@
-use std::time::{Duration, Instant};
 
 use eframe::egui;
-use gbe_core::{Gameboy, GameboySnapshot};
+use gbe_core::Gameboy;
 
 use crate::{
-    debugger::{
-        common::PANEL_BG,
-        cpu::{CpuDebuggerComponent, DisassemblerComponent},
-    },
-    render::GameBoyRenderer,
+    assets::{PAUSE_SVG, PLAY_SVG, RESET_SVG, STEP_FRAME_SVG, STEP_INSTRUCTION_SVG}, debugger::{
+        bus::{InterruptsComponent, TimersComponent}, components::{DebuggerComponentUi, components_ui}, cpu::{CpuDebuggerComponent, DisassemblerComponent}, ppu::{LCDComponent, WindowComponent},
+    }, runner::GameboyRunner
 };
 
 pub(super) mod common;
 mod cpu;
-
-trait DebuggerComponent {
-    fn name(&self) -> &'static str;
-    fn ui(&mut self, ui: &mut egui::Ui, gameboy_snapshot: &GameboySnapshot);
-}
-
-struct DebuggerComponentUi {
-    comp: Box<dyn DebuggerComponent>,
-}
-
-impl DebuggerComponentUi {
-    fn ui(&mut self, ui: &mut egui::Ui, gameboy_snapshot: &GameboySnapshot) {
-        common::component_section(ui, self.comp.name(), |ui| {
-            self.comp.ui(ui, gameboy_snapshot);
-        });
-    }
-}
+mod bus;
+mod ppu;
+mod components;
 
 pub struct DebuggerUi {
     gameboy: Gameboy,
-    gb_renderer: GameBoyRenderer,
-    debugger_comps: Vec<DebuggerComponentUi>,
+    debugger_comps_left: Vec<DebuggerComponentUi>,
+    debugger_comps_right: Vec<DebuggerComponentUi>,
 
-    last_clock: Instant,
-    refresh_rate: Duration,
+    gb_runner: GameboyRunner,
+    is_running: bool,
 }
 
 impl DebuggerUi {
-    pub fn new(gameboy: Gameboy) -> Self {
+    pub fn new(ctx: &egui::Context, gameboy: Gameboy) -> Self {
         Self {
             gameboy,
-            gb_renderer: GameBoyRenderer::new(),
-            debugger_comps: vec![
-                DebuggerComponentUi {
-                    comp: Box::new(CpuDebuggerComponent::new()),
-                },
-                DebuggerComponentUi {
-                    comp: Box::new(DisassemblerComponent::new(10, 3)),
-                },
+            gb_runner: GameboyRunner::new(ctx),
+            debugger_comps_left: vec![
+                DebuggerComponentUi::new(CpuDebuggerComponent::new()),
+                DebuggerComponentUi::new(DisassemblerComponent::new(10, 3)),
+                DebuggerComponentUi::new(InterruptsComponent),
             ],
-            last_clock: Instant::now(),
-            refresh_rate: Duration::from_secs_f64(0.01674),
+            debugger_comps_right: vec![
+                DebuggerComponentUi::new(TimersComponent),
+                DebuggerComponentUi::new(WindowComponent),
+                DebuggerComponentUi::new(LCDComponent)
+            ],
+            is_running: false,
         }
     }
 
     pub fn update(&mut self, ui: &mut egui::Ui) {
-        self.draw_frame();
+        if self.is_running {
+            self.gb_runner.update(&mut self.gameboy);
+            ui.request_repaint_after(self.gb_runner.frame_duration());
+        }
         self.ui(ui);
     }
 
@@ -71,34 +58,65 @@ impl DebuggerUi {
             .resizable(false)
             .exact_size(side_panels_width)
             .show(ui, |ui| {
-                egui::Frame::new()
-                    .fill(PANEL_BG)
-                    .inner_margin(12.0)
-                    .show(ui, |ui| {
-                        egui::ScrollArea::vertical().show(ui, |ui| {
-                            for comp in &mut self.debugger_comps {
-                                comp.ui(ui, &gameboy_snapshot);
-                            }
-                        });
-                    });
+                components_ui(ui, &mut self.debugger_comps_left, &gameboy_snapshot);
             });
 
         egui::Panel::right("Right Panel")
             .resizable(false)
             .exact_size(side_panels_width)
-            .show(ui, |_| {});
+            .show(ui, |ui| {
+                components_ui(ui, &mut self.debugger_comps_right, &gameboy_snapshot);
+            });
 
         egui::CentralPanel::default().show(ui, |ui| {
-            self.gb_renderer.ui(ui, self.gameboy.get_framebuffer());
+            self.draw_emulation_control(ui);
+            self.draw_gameboy_screen(ui);
         });
-
-        ui.request_repaint_after(self.refresh_rate);
     }
 
-    fn draw_frame(&mut self) {
-        if Instant::now() - self.last_clock >= self.refresh_rate {
-            self.gameboy.next_frame();
-            self.last_clock = Instant::now();
+    fn draw_gameboy_screen(&mut self, ui: &mut egui::Ui) {
+        if self.is_running {
+            self.gb_runner.ui(ui);
         }
+        else {
+            self.gb_runner.ui_with_framebuffer(ui, self.gameboy.get_framebuffer());
+        }
+    }
+
+    fn draw_emulation_control(&mut self, ui: &mut egui::Ui) {
+
+        let icon_size= egui::vec2(50.0, 50.0);
+        
+        ui.add_space(10.0);
+
+        let spacing = ui.spacing().item_spacing.x;
+        let btn_pad = ui.spacing().button_padding.x;
+        let n = if self.is_running { 2.0 } else { 4.0 };
+        let total_size = spacing * (n - 1.0) + (icon_size.x + btn_pad * 2.0) * n;
+        let pad = ((ui.available_width() - total_size) * 0.5 - spacing).max(0.0);
+
+        ui.horizontal(|ui| {
+            ui.add_space(pad);
+
+            if self.is_running {
+                let clicked = common::icon(ui, PAUSE_SVG, "pause", icon_size).clicked();
+                self.is_running = !clicked;
+            }
+            else {
+                let play_clicked = common::icon(ui, PLAY_SVG, "play", icon_size).clicked();
+                let step_instr_clicked = common::icon(ui, STEP_INSTRUCTION_SVG, "step", icon_size).clicked();
+                let step_frame_clicked = common::icon(ui, STEP_FRAME_SVG, "frame", icon_size).clicked();
+
+                self.is_running = play_clicked;
+                if step_instr_clicked { self.gameboy.next_instruction(); }
+                if step_frame_clicked { self.gameboy.next_frame(); }
+            }
+
+            let reset_clicked = common::icon(ui, RESET_SVG, "reset", icon_size).clicked();
+            if reset_clicked { 
+                self.gameboy.reset();
+                self.is_running = false;
+            }
+        });
     }
 }

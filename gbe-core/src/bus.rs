@@ -13,8 +13,8 @@ pub struct Bus {
     hram: Ram<127>,
 
     oam_dma_transfer_cycles: u8,
-    div_register: u16,
-    timers: Timers,
+    pub div_register: u16,
+    pub timers: Timers,
 
     pub lcd: LCD,
 
@@ -42,6 +42,15 @@ impl Bus {
             interrupts_flags: InterruptFlags::new(),
             oam_dma_transfer_cycles: 0,
         }
+    }
+
+    pub fn reset(&mut self) {
+        self.div_register = 0;
+        self.lcd = LCD::new();
+        self.window = Window::new();
+        self.timers = Timers::new();
+        self.interrupts_flags = InterruptFlags::new();
+        self.oam_dma_transfer_cycles = 0;
     }
 
     pub fn plug_serial_device<SD: SerialDevice + 'static>(&mut self, serial_device: SD) -> Rc<RefCell<SD>> {

@@ -32,6 +32,7 @@ pub enum EventKind {
     LcdSwitch { on: bool },
     FrameCompleted,
     TimerReloaded { value: u8 },
+    EmulatorReset,
 }
 
 impl EventKind {
@@ -42,6 +43,7 @@ impl EventKind {
             Self::PpuModeChanged { .. } | Self::FrameCompleted => EventComponent::Ppu,
             Self::TimerReloaded { .. } => EventComponent::Timer,
             Self::LcdSwitch { .. } => EventComponent::Ppu,
+            Self::EmulatorReset => EventComponent::Emulator,
         }
     }
 
@@ -49,7 +51,7 @@ impl EventKind {
         match self {
             Self::CpuInstruction { .. } | Self::FrameCompleted => EventLevel::Trace,
             Self::InterruptServiced { .. } | Self::PpuModeChanged { .. } | Self::TimerReloaded { .. } => EventLevel::Debug,
-            Self::LcdSwitch { .. } => EventLevel::Info,
+            Self::LcdSwitch { .. } | Self::EmulatorReset => EventLevel::Info,
         }
     }
 }

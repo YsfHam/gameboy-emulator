@@ -4,9 +4,10 @@ use eframe::egui::{self, ViewportBuilder};
 use gbe_core::{Cartridge, Gameboy};
 
 use crate::{args::CLIArgs, debugger::{DebuggerUi, common::configure_theme}};
-mod render;
+mod runner;
 mod args;
 mod debugger;
+mod assets;
 
 fn main() -> eframe::Result {
     let native_options = eframe::NativeOptions {
@@ -32,11 +33,12 @@ struct GBEmulatorApp {
 impl GBEmulatorApp {
     fn new(cc: &eframe::CreationContext<'_>) -> Result<Self, String> {
         configure_theme(&cc.egui_ctx);
+        egui_extras::install_image_loaders(&cc.egui_ctx);
         let args = CLIArgs::parse_args().ok_or("Args are required")?;
         let cart = Cartridge::from_memory(fs::read(args.rom_path).map_err(|err| err.to_string())?);
         let gameboy =  Gameboy::new(cart);
         Ok(Self {
-            debugger_ui: DebuggerUi::new(gameboy)
+            debugger_ui: DebuggerUi::new(&cc.egui_ctx, gameboy)
         })
     }
 }

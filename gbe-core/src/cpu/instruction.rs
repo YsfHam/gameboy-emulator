@@ -75,10 +75,34 @@ pub enum AddressingMode {
     Immediate8,
 }
 
+impl AddressingMode {
+    pub fn length(&self) -> u16 {
+        match self {
+            AddressingMode::Register(_) => 0,
+            AddressingMode::Indirect(_) => 0,
+            AddressingMode::IdirectImm16 => 2,
+            AddressingMode::IndirectInc(_) => 0,
+            AddressingMode::IndirectDec(_) => 0,
+            AddressingMode::IndirectImmH => 1,
+            AddressingMode::RegCIndirect => 0,
+            AddressingMode::Immediate8 => 1,
+        }
+    }
+}
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum AddressingMode16 {
     Register(Register16),
     Immediate16,
+}
+
+impl AddressingMode16 {
+    pub fn length(&self) -> u16 {
+        match self {
+            AddressingMode16::Register(_) => 0,
+            AddressingMode16::Immediate16 => 2,
+        }
+    }
 }
 
 impl Instruction {
@@ -87,6 +111,66 @@ impl Instruction {
             Self::prefixed(value)
         } else {
             Self::standard(value)
+        }
+    }
+
+    pub fn length(&self) -> u16 {
+        match self {
+            Instruction::Nop => 1,
+            Instruction::Prefixed => 1,
+            Instruction::Illegal => 1,
+            Instruction::Adc(addressing_mode) => 1 + addressing_mode.length(),
+            Instruction::AddA(addressing_mode) => 1 + addressing_mode.length(),
+            Instruction::AddHL(_) => 1,
+            Instruction::AddSP => 1,
+            Instruction::And(addressing_mode) => 1 + addressing_mode.length(),
+            Instruction::Bit(_, addressing_mode) => 1 + addressing_mode.length(),
+            Instruction::Call(_) => 3,
+            Instruction::Ccf => 1,
+            Instruction::Cp(addressing_mode) => 1 + addressing_mode.length(),
+            Instruction::Cpl => 1,
+            Instruction::Daa => 1,
+            Instruction::Dec8(_) => 1,
+            Instruction::DecHL => 1,
+            Instruction::Dec16(_) => 1,
+            Instruction::Di => 1,
+            Instruction::Ei => 1,
+            Instruction::Halt => 1,
+            Instruction::Inc8(_) => 1,
+            Instruction::IncHL => 1,
+            Instruction::Inc16(_) => 1,
+            Instruction::Jp(_) => 3,
+            Instruction::JpHL => 1,
+            Instruction::Jr(_) => 2,
+            Instruction::Ld8(addressing_mode, addressing_mode1) => 1 + addressing_mode.length() + addressing_mode1.length(),
+            Instruction::Ld16(_, addressing_mode16) => 1 + addressing_mode16.length(),
+            Instruction::LdSp => 3,
+            Instruction::LdHLSp => 2,
+            Instruction::Or(addressing_mode) => 1 + addressing_mode.length(),
+            Instruction::Pop(_) => 1,
+            Instruction::Push(_) => 1,
+            Instruction::Res(_, addressing_mode) => 1 + addressing_mode.length(),
+            Instruction::Ret(_) => 1,
+            Instruction::RetI => 1,
+            Instruction::Rla => 1,
+            Instruction::Rlca => 1,
+            Instruction::Rl(addressing_mode) => 1 + addressing_mode.length(),
+            Instruction::Rlc(addressing_mode) => 1 + addressing_mode.length(),
+            Instruction::Rra => 1,
+            Instruction::Rrca => 1,
+            Instruction::Rr(addressing_mode) => 1 + addressing_mode.length(),
+            Instruction::Rrc(addressing_mode) => 1 + addressing_mode.length(),
+            Instruction::Rst(_) => 1,
+            Instruction::Sbc(addressing_mode) => 1 + addressing_mode.length(),
+            Instruction::Scf => 1,
+            Instruction::Set(_, addressing_mode) => 1 + addressing_mode.length(),
+            Instruction::Sla(addressing_mode) => 1 + addressing_mode.length(),
+            Instruction::Sra(addressing_mode) => 1 + addressing_mode.length(),
+            Instruction::Srl(addressing_mode) => 1 + addressing_mode.length(),
+            Instruction::Stop => 1,
+            Instruction::Sub(addressing_mode) => 1 + addressing_mode.length(),
+            Instruction::Swap(addressing_mode) => 1 + addressing_mode.length(),
+            Instruction::Xor(addressing_mode) => 1 + addressing_mode.length(),
         }
     }
 

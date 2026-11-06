@@ -20,6 +20,7 @@ pub use cpu::snapshot::CpuSnapshot;
 pub use debugging::disassemble;
 pub use interrupts::Interrupt;
 pub use lcd::LCDCFlags;
+pub use bus::Bus;
 
 pub use serial::*;
 pub use debugging::events::*;

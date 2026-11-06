@@ -1,4 +1,6 @@
-use gbe_core::disassemble;
+use std::collections::VecDeque;
+
+use gbe_core::{Bus, disassemble::disassemble};
 
 use crate::debugger::{
     common::{self, ACCENT, ACTIVE_BG, CARD_BG, MUTED_TEXT}, components::DebuggerComponent,
@@ -55,6 +57,8 @@ impl DebuggerComponent for CpuDebuggerComponent {
 pub struct DisassemblerComponent {
     max_elements: u32,
     min_forward: u32,
+    instructions: VecDeque<(u16, String)>,
+    last_pc: Option<u16>,
 }
 
 impl DisassemblerComponent {
@@ -62,7 +66,43 @@ impl DisassemblerComponent {
         Self {
             max_elements,
             min_forward,
+            instructions: VecDeque::new(),
+            last_pc: None,
         }
+    }
+
+    fn flush_instruction(&mut self, pc: u16, bus: &Bus) {
+        self.instructions.clear();
+        let (instruction_code, new_pc) = disassemble(&bus, pc);
+        self.instructions.push_back((pc, instruction_code));
+        self.last_pc = Some(new_pc);
+        self.extend_instructions(&bus, self.max_elements - 1);
+    }
+
+    fn extend_instructions(&mut self, bus: &Bus, extended_size: u32) {
+        let mut pc = match self.last_pc {
+            Some(pc) => pc,
+            None => return
+        };
+        for _ in 0..extended_size {
+            let (instruction_code, new_pc) = disassemble(&bus, pc);
+            self.instructions.push_back((pc, instruction_code));
+            pc = new_pc;
+        }
+        self.last_pc = Some(pc);
+        if self.instructions.len() > self.max_elements as usize {
+            for _ in 0..extended_size {
+                self.instructions.pop_front();
+            }
+        }
+    }
+
+    fn find_pc(&self, pc: u16) -> Option<usize> {
+        self.instructions
+        .iter()
+        .enumerate()
+        .find(|(_, (instr_pc, _))| pc == *instr_pc)
+        .map(|(index, _)| index)
     }
 }
 
@@ -73,19 +113,25 @@ impl DebuggerComponent for DisassemblerComponent {
 
     fn ui(&mut self, ui: &mut eframe::egui::Ui, gameboy_snapshot: &gbe_core::GameboySnapshot) {
         let pc = gameboy_snapshot.cpu.pc;
-        let preceding_lines = self
+        let bus = gameboy_snapshot.bus;
+        let pc_index = self.find_pc(pc);
+        if self.instructions.is_empty() || pc_index.is_none() {
+            self.flush_instruction(pc, bus);
+        }
+        let extension_threshold = self
             .max_elements
-            .saturating_sub(self.min_forward)
-            .saturating_sub(1);
-        let start = pc.wrapping_sub(preceding_lines as u16);
+            .saturating_sub(self.min_forward);
+        if let Some(index) = pc_index {
+            if index >= extension_threshold as usize {
+                self.extend_instructions(bus, self.min_forward);
+            }
+        }
 
         eframe::egui::ScrollArea::vertical()
             .max_height(280.0)
             .show(ui, |ui| {
-                for offset in 0..self.max_elements {
-                    let address = start.wrapping_add(offset as u16);
-                    let is_current = address == pc;
-                    let instruction = disassemble::disassemble(gameboy_snapshot.bus, address);
+                for (address, instruction) in &self.instructions {
+                    let is_current = *address == pc;
 
                     eframe::egui::Frame::new()
                         .fill(if is_current { ACTIVE_BG } else { CARD_BG })

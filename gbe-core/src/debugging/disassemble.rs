@@ -1,8 +1,10 @@
 use crate::{bus::Bus, cpu::instruction::{AddressingMode, AddressingMode16, Instruction}};
 
-pub fn disassemble(bus: &Bus, pc: u16) -> String {
+pub fn disassemble(bus: &Bus, pc: u16) -> (String, u16) {
     let instruction = get_instruction(bus, pc, false);
-    disassemble_instruction(bus, pc, instruction)
+    let new_pc = pc.wrapping_add(instruction.length());
+    let code = disassemble_instruction(bus, pc, instruction);
+    (code, new_pc)
 }
 
 fn disassemble_instruction(bus: &Bus, pc: u16, instruction: Instruction) -> String {
@@ -110,11 +112,15 @@ fn disassemble_instruction(bus: &Bus, pc: u16, instruction: Instruction) -> Stri
 fn disassemble_addressing_mode(bus: &Bus, pc: u16, addressing_mode: AddressingMode) -> String {
     match addressing_mode {
         AddressingMode::Register(register8) => format!("{:?}", register8),
-        AddressingMode::Indirect(register16) => format!("{:?}", register16),
+        AddressingMode::Indirect(register16) => format!("[{:?}]", register16),
         AddressingMode::IdirectImm16 => format!("{:04X}", fetch_u16(bus, pc)),
         AddressingMode::IndirectInc(register16) => format!("[{:?}+]", register16),
         AddressingMode::IndirectDec(register16) => format!("[{:?}-]", register16),
-        AddressingMode::IndirectImmH => format!("[HL]"),
+        AddressingMode::IndirectImmH => {
+            let addr = 0xFF00 | bus.read_u8(pc.wrapping_add(1)) as u16;
+            let value = bus.read_u8(addr);
+            format!("{:02X}", value)
+        }
         AddressingMode::RegCIndirect => format!("[C]"),
         AddressingMode::Immediate8 => format!("{:02X}", bus.read_u8(pc.wrapping_add(1))),
     }

@@ -91,10 +91,21 @@ impl Gameboy {
         self.bus.remove_serial_device();
     }
 
-    pub fn get_snapshot<'a >(&'a self) -> GameboySnapshot<'a> {
+    pub fn get_snapshot<'a>(&'a self) -> GameboySnapshot<'a> {
         GameboySnapshot {
             cpu: self.cpu.get_snapshot(),
             bus: &self.bus
         }
+    }
+
+    /// Lock/confllict-free memory peek for debug tooling and tests.
+    pub fn peek(&self, addr: u16) -> u8 {
+        self.bus.peek_u8(addr)
+    }
+
+    /// Raw write into emulator memory, bypassing bus locks and DMA conflicts;
+    /// for tests and debug tooling only.
+    pub fn poke(&mut self, addr: u16, value: u8) {
+        self.bus.poke_u8(addr, value);
     }
 }

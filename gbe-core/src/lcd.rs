@@ -17,7 +17,7 @@ pub struct LCD {
     pub control: u8,
     lcd_y: u8,
     lcd_y_cp: u8,
-    stats: u8,
+    pub stats: u8,
     pub scy: u8,
     pub scx: u8,
     pub bgp: u8,

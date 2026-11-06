@@ -36,6 +36,7 @@ impl DebuggerComponent for LCDComponent {
         .spacing(egui::vec2(8.0, 8.0))
         .show(ui, |ui| {
             common::cell(ui, "LCDC", &format!("{:02X}", lcd.control));
+            common::cell(ui, "STAT", &format!("{:02X}", lcd.stats));
             ui.end_row();
             common::cell(ui, "YL", &format!("{:02X}", lcd.ly()));
             common::cell(ui, "LYC", &format!("{:02X}", lcd.lyc()));

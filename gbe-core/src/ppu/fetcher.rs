@@ -193,7 +193,7 @@ impl BGWFetcher {
         };
         self.bg_y = bg_y;
         let map_addr = base + (bg_y / 8) as u16 * 32 + tile_x as u16;
-        self.tile_number = bus.read_u8(map_addr);
+        self.tile_number = bus.ppu_read_u8(map_addr);
         self.stage = FetcherStage::FetchLowByte;
         self.dots = 2;
     }
@@ -210,14 +210,14 @@ impl BGWFetcher {
         };
 
         self.row_addr = tile_addr + row as u16 * 2;
-        self.low_byte = bus.read_u8(self.row_addr);
+        self.low_byte = bus.ppu_read_u8(self.row_addr);
 
         self.stage = FetcherStage::FetchHighByte;
         self.dots = 2;
     }
 
     fn fetch_high_byte(&mut self, bus: &Bus) {
-        self.high_byte = bus.read_u8(self.row_addr + 1);
+        self.high_byte = bus.ppu_read_u8(self.row_addr + 1);
         self.stage = FetcherStage::PushFifo;
         self.dots = 2;
     }
@@ -278,8 +278,8 @@ impl SpriteFetcher {
         if (s.flags >> 6) & 1 == 1 { row = height - 1 - row; }
         let tile = if height == 16 { s.tile_index & 0xFE } else { s.tile_index };
         let addr = 0x8000 + tile as u16 * 16 + row * 2;
-        let low = bus.read_u8(addr);
-        let high = bus.read_u8(addr + 1);
+        let low = bus.ppu_read_u8(addr);
+        let high = bus.ppu_read_u8(addr + 1);
 
         let palette = if (s.flags >> 4) & 1 == 0 { SpritePalette::Obj0 } else { SpritePalette::Obj1 };
         let priority = (s.flags >> 7) & 1 == 1;

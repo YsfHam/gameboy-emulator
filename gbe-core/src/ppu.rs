@@ -26,10 +26,10 @@ impl OAMEntriesFetcher {
         let addr = self.current_addr;
         self.current_addr += 4;
         OAMEntry {
-            y_pos: bus.read_u8(addr),
-            x_pos: bus.read_u8(addr + 1),
-            tile_index: bus.read_u8(addr + 2),
-            flags: bus.read_u8(addr + 3),
+            y_pos: bus.ppu_read_u8(addr),
+            x_pos: bus.ppu_read_u8(addr + 1),
+            tile_index: bus.ppu_read_u8(addr + 2),
+            flags: bus.ppu_read_u8(addr + 3),
         }
     }
 }
@@ -121,13 +121,16 @@ impl Ppu {
 
     fn dot_clock(&mut self, bus: &mut Bus, events: &mut EventBuffer, cycle: u64) -> bool {
         while self.dots == 0 {
+            self.handle_stat_reg(bus);
+            self.update_bus_locks(bus);
+            
             self.executing_mode(bus, events, cycle);
+            
             if self.frame_completed {
                 events.push(Event::new(cycle, EventKind::FrameCompleted));
                 return true;
             }
         }
-        self.handle_stat_reg(bus);
         self.dots = self.dots.saturating_sub(1);
 
         false
@@ -144,7 +147,7 @@ impl Ppu {
             PpuMode::Mode3 => self.mode3(bus),
             PpuMode::Mode0 => self.mode0(),
             PpuMode::Mode0End => self.mode0_end(bus),
-            PpuMode::Mode1 => self.mode1(),
+            PpuMode::Mode1 => self.mode1(bus),
             PpuMode::Mode1End => self.mode1_end(bus),
             PpuMode::FrameEnd => self.frame_end(),
         }
@@ -165,11 +168,18 @@ impl Ppu {
             PpuMode::Mode1 | PpuMode::Mode1End | PpuMode::FrameEnd => 1,
             PpuMode::FrameStart | PpuMode::Mode2Start | PpuMode::Mode2 => 2,
             PpuMode::Mode3Start | PpuMode::Mode3 => 3,
-            PpuMode::EmptyFrame => unreachable!("Empty frame"),
+            PpuMode::EmptyFrame => 1,
         }
     }
 
-    fn handle_stat_reg(&self, bus: &mut Bus) {
+    fn update_bus_locks(&self, bus: &mut Bus) {
+        let on = bus.lcd.get_lcdc_flag(LCDCFlags::LCDPpuEnable);
+        let locked = on && self.stat_mode() >= 2;
+        bus.vram_locked = on && self.stat_mode() == 3;
+        bus.oam_locked = locked;
+    }
+
+    fn handle_stat_reg(&mut self, bus: &mut Bus) {
         if bus.lcd.update_stat(self.stat_mode()) {
             bus.interrupts_flags.request_interrupt(Interrupt::LCD);
         }
@@ -270,14 +280,14 @@ impl Ppu {
         }
     }
 
-    fn mode1(&mut self) {
+    fn mode1(&mut self, bus: &mut Bus) {
         self.dots = 456;
+        bus.interrupts_flags.request_interrupt(Interrupt::VBlank);
         self.mode = PpuMode::Mode1End;
     }
 
     fn mode1_end(&mut self, bus: &mut Bus) {
         if bus.lcd.ly() == 153 {
-            bus.interrupts_flags.request_interrupt(Interrupt::VBlank);
             bus.lcd.reset_ly();
             self.mode = PpuMode::FrameEnd;
         }

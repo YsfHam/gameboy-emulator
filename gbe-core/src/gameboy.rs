@@ -1,7 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
 use crate::{
-    CpuSnapshot, EventKind, bus::Bus, cartridge::Cartridge, cpu::Cpu, debugging::events::{DEFAULT_EVENT_BUFFER_CAPACITY, Event, EventBuffer, EventFilter}, ppu::Ppu, serial::SerialDevice,
+    CpuSnapshot, EventKind, bus::Bus, cartridge::Cartridge, cpu::Cpu, debugging::events::{DEFAULT_EVENT_BUFFER_CAPACITY, Event, EventBuffer, EventFilter}, joypad::JoypButton, ppu::Ppu, serial::SerialDevice,
 };
 
 #[derive(Clone)]
@@ -77,9 +77,9 @@ impl Gameboy {
 
     pub fn clock(&mut self) {
         let cycle = self.cycle;
-        self.cpu.clock(&mut self.bus, &mut self.events, cycle);
         self.bus.clock(&mut self.events, cycle);
         self.ppu.clock(&mut self.bus, &mut self.events, cycle);
+        self.cpu.clock(&mut self.bus, &mut self.events, cycle);
         self.cycle = self.cycle.wrapping_add(1);
     }
 
@@ -96,6 +96,20 @@ impl Gameboy {
             cpu: self.cpu.get_snapshot(),
             bus: &self.bus
         }
+    }
+
+    pub fn presse_button(&mut self, btn: JoypButton) {
+        self.bus.joypad.presse_button(btn);
+        self.bus
+            .interrupts_flags
+            .maybe_request_joypad_interrupt(&self.bus.joypad);
+    }
+
+    pub fn release_button(&mut self, btn: JoypButton) {
+        self.bus.joypad.release_button(btn);
+        self.bus
+            .interrupts_flags
+            .maybe_request_joypad_interrupt(&self.bus.joypad);
     }
 
     /// Lock/confllict-free memory peek for debug tooling and tests.

@@ -8,6 +8,8 @@ pub enum Interrupt {
     Joypad
 }
 
+use super::joypad::Joypad;
+
 impl Interrupt {
     pub fn handler_addr(&self) -> u16 {
         match self {
@@ -28,6 +30,9 @@ pub struct InterruptFlags {
 impl InterruptFlags {
     pub fn new() -> Self {
         Self {
+            // Post-boot hardware value on DMG: no interrupts enabled. Games enable
+            // the ones they need; forcing bits here would dispatch vectors into
+            // games that mask them (e.g. SML2 leaves the joypad bit masked).
             interrupt_enabled: 0,
             interrupt_requested: 0,
         }
@@ -58,6 +63,12 @@ impl InterruptFlags {
     pub fn request_interrupt(&mut self, interrupt: Interrupt) {
         self.interrupt_requested = 
             self.interrupt_requested | (1 << interrupt as u8);
+    }
+    
+    pub fn maybe_request_joypad_interrupt(&mut self, joypad: &Joypad) {
+        if joypad.any_selected_pressed() {
+            self.request_interrupt(Interrupt::Joypad);
+        }
     }
 
 }

@@ -71,3 +71,5 @@ pub const OAM_END: u16 = 0xFE9F;
 // WINDOW
 pub const WINDOW_X: u16 = 0xFF4B;
 pub const WINDOW_Y: u16 = 0xFF4A;
+
+pub const JOYP: u16 = 0xFF00;

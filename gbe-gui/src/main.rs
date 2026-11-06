@@ -8,6 +8,7 @@ mod runner;
 mod args;
 mod debugger;
 mod assets;
+mod controller;
 
 fn main() -> eframe::Result {
     let native_options = eframe::NativeOptions {

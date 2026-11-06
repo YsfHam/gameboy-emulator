@@ -1,5 +1,5 @@
 use eframe::egui;
-use gbe_core::Interrupt;
+use gbe_core::{Interrupt, joypad::JoypButton};
 
 use crate::debugger::{common, components::DebuggerComponent};
 
@@ -63,6 +63,41 @@ impl DebuggerComponent for TimersComponent {
             ui.end_row();
             common::cell(ui, "TMA", &format!("{:02X}", timers.tma));
             common::cell(ui, "TIMA", &format!("{:02X}", timers.tima));
+        });
+    }
+}
+
+pub struct JoypadComponent;
+
+impl DebuggerComponent for JoypadComponent {
+    fn name(&self) -> &'static str {
+        "JOYPAD"
+    }
+
+    fn ui(&mut self, ui: &mut egui::Ui, gameboy_snapshot: &gbe_core::GameboySnapshot) {
+        let buttons = [
+            [JoypButton::A,
+            JoypButton::B,
+            JoypButton::Select,
+            JoypButton::Start,],
+            [JoypButton::Right,
+            JoypButton::Left,
+            JoypButton::Up,
+            JoypButton::Down,]
+        ];
+
+        egui::Grid::new("joypad")
+        .spacing(egui::vec2(8.0, 8.0))
+        .show(ui, |ui| {
+            for btns_set in buttons {
+                for btn in btns_set {
+                    common::state_chip(ui, &format!("{btn:?}"), gameboy_snapshot.bus.joypad.is_button_pressed(btn));
+                }
+                ui.end_row();
+            }
+
+            common::state_chip(ui, "D-pad", gameboy_snapshot.bus.joypad.select_d_pad());
+            common::state_chip(ui, "Button", gameboy_snapshot.bus.joypad.select_button());
         });
     }
 }

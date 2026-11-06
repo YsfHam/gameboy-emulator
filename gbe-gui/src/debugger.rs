@@ -4,7 +4,7 @@ use gbe_core::Gameboy;
 
 use crate::{
     assets::{PAUSE_SVG, PLAY_SVG, RESET_SVG, STEP_FRAME_SVG, STEP_INSTRUCTION_SVG}, debugger::{
-        bus::{InterruptsComponent, TimersComponent}, components::{DebuggerComponentUi, components_ui}, cpu::{CpuDebuggerComponent, DisassemblerComponent}, ppu::{LCDComponent, WindowComponent},
+        bus::{InterruptsComponent, JoypadComponent, TimersComponent}, components::{DebuggerComponentUi, components_ui}, cpu::{CpuDebuggerComponent, DisassemblerComponent}, ppu::{LCDComponent, WindowComponent},
     }, runner::GameboyRunner
 };
 
@@ -36,7 +36,8 @@ impl DebuggerUi {
             debugger_comps_right: vec![
                 DebuggerComponentUi::new(TimersComponent),
                 DebuggerComponentUi::new(WindowComponent),
-                DebuggerComponentUi::new(LCDComponent)
+                DebuggerComponentUi::new(LCDComponent),
+                DebuggerComponentUi::new(JoypadComponent)
             ],
             is_running: false,
         }
@@ -44,7 +45,9 @@ impl DebuggerUi {
 
     pub fn update(&mut self, ui: &mut egui::Ui) {
         if self.is_running {
-            self.gb_runner.update(&mut self.gameboy);
+            ui.input(|input| {
+                self.gb_runner.update(&mut self.gameboy, input);
+            });
             ui.request_repaint_after(self.gb_runner.frame_duration());
         }
         self.ui(ui);

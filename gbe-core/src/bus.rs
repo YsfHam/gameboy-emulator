@@ -1,6 +1,6 @@
 use std::{cell::RefCell, rc::Rc};
 
-use crate::{cartridge::Cartridge, constants::{BGP, DIV_REGISTER, ECHO_RAM_END, ECHO_RAM_START, EXTERNAL_RAM_END, EXTERNAL_RAM_START, HRAM_MEM_END, HRAM_MEM_START, IE_REGISTER, IO_INTERRUPTS, LCD_CONTROL, LCD_STATS, LCD_Y, LCD_Y_COMPARE, OAM_DMA_TRANSFER, OAM_END, OAM_START, OBP0, OBP1, SCROLL_X, SCROLL_Y, SERIAL_SB, TAC, TIMA, TMA, VRAM_MEM_END, VRAM_MEM_START, WINDOW_X, WINDOW_Y, WRAM_BANK_MEM_END, WRAM_BANK_MEM_START, WRAM_MEM_END, WRAM_MEM_START}, debugging::events::{Event, EventBuffer, EventKind}, interrupts::{Interrupt, InterruptFlags}, lcd::LCD, memory::{Ram, Ram4Kib, Ram8Kib}, serial::SerialDevice, timers::Timers, window::Window};
+use crate::{cartridge::Cartridge, constants::{BGP, DIV_REGISTER, ECHO_RAM_END, ECHO_RAM_START, EXTERNAL_RAM_END, EXTERNAL_RAM_START, HRAM_MEM_END, HRAM_MEM_START, IE_REGISTER, IO_INTERRUPTS, JOYP, LCD_CONTROL, LCD_STATS, LCD_Y, LCD_Y_COMPARE, OAM_DMA_TRANSFER, OAM_END, OAM_START, OBP0, OBP1, SCROLL_X, SCROLL_Y, SERIAL_SB, TAC, TIMA, TMA, VRAM_MEM_END, VRAM_MEM_START, WINDOW_X, WINDOW_Y, WRAM_BANK_MEM_END, WRAM_BANK_MEM_START, WRAM_MEM_END, WRAM_MEM_START}, debugging::events::{Event, EventBuffer, EventKind}, interrupts::{Interrupt, InterruptFlags}, joypad::Joypad, lcd::LCD, memory::{Ram, Ram4Kib, Ram8Kib}, serial::SerialDevice, timers::Timers, window::Window};
 
 pub struct Bus {
 
@@ -28,6 +28,7 @@ pub struct Bus {
 
     pub vram_locked: bool,
     pub oam_locked: bool,
+    pub joypad: Joypad
 }
 
 impl Bus {
@@ -51,6 +52,8 @@ impl Bus {
 
             vram_locked: false,
             oam_locked: false,
+
+            joypad: Joypad::new()
         }
     }
 
@@ -175,6 +178,7 @@ impl Bus {
         self.oam_dma_byte_index = 0;
         self.vram_locked = false;
         self.oam_locked = false;
+        self.joypad = Joypad::new();
     }
 
     pub fn plug_serial_device<SD: SerialDevice + 'static>(&mut self, serial_device: SD) -> Rc<RefCell<SD>> {
@@ -275,6 +279,9 @@ impl Bus {
         }
         else if addr == WINDOW_Y {
             self.window.wy
+        }
+        else if addr == JOYP {
+            self.joypad.get()
         }
         else {
             0xFF
@@ -377,6 +384,13 @@ impl Bus {
             // The transfer begins on the M-cycle after this one, not during this write.
             self.oam_dma_byte_index = 160;
             self.oam_dma_active = true;
+        }
+        else if addr == JOYP {
+            self.joypad.set(value);
+            if self.joypad.any_selected_pressed() {
+                self.interrupts_flags
+                    .request_interrupt(Interrupt::Joypad);
+            }
         }
     }
 

@@ -12,6 +12,7 @@ mod lcd;
 mod ppu;
 mod window;
 mod debugging;
+pub mod joypad;
 
 pub use cartridge::Cartridge;
 pub use constants::{SCREEN_HEIGHT, SCREEN_WIDTH};

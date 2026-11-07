@@ -274,6 +274,7 @@ impl Ppu {
         bus.lcd.increment_ly();
         if bus.lcd.ly() == 144 {
             self.mode = PpuMode::Mode1;
+            bus.interrupts_flags.request_interrupt(Interrupt::VBlank);
         }
         else {
             self.mode = PpuMode::Mode2Start;
@@ -282,7 +283,6 @@ impl Ppu {
 
     fn mode1(&mut self, bus: &mut Bus) {
         self.dots = 456;
-        bus.interrupts_flags.request_interrupt(Interrupt::VBlank);
         self.mode = PpuMode::Mode1End;
     }
 

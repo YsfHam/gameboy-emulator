@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 use eframe::egui::{self, Color32, ColorImage};
 use gbe_core::{Gameboy, SCREEN_HEIGHT, SCREEN_WIDTH};
 
-use crate::controller::KeyboardBindings;
+use crate::controller::Controllers;
 
 pub struct Palette {
     colors: [Color32; 5],
@@ -79,7 +79,7 @@ pub struct GameboyRunner {
     last_clock: Instant,
     frame_duration: Duration,
     renderer: GameboyRenderer,
-    keyboard_bindings: KeyboardBindings,
+    controllers: Controllers
 }
 
 impl GameboyRunner {
@@ -88,7 +88,7 @@ impl GameboyRunner {
             last_clock: Instant::now(),
             frame_duration: Duration::from_secs_f64(GAMEBOY_FRAME_TIME),
             renderer: GameboyRenderer::new(ctx),
-            keyboard_bindings: KeyboardBindings::default()
+            controllers: Controllers::new(),
         }
     }
 
@@ -96,9 +96,9 @@ impl GameboyRunner {
         self.frame_duration
     }
 
-    pub fn update(&mut self, gameboy: &mut Gameboy, input: &egui::InputState) {
+    pub fn update(&mut self, gameboy: &mut Gameboy, ctx: &egui::Context) {
 
-        if let Some((joyp, state)) = self.keyboard_bindings.poll(input) {
+        if let Some((joyp, state)) = self.controllers.poll(ctx) {
             match state {
                 crate::controller::KeyState::Pressed => gameboy.presse_button(joyp),
                 crate::controller::KeyState::Released => gameboy.release_button(joyp),

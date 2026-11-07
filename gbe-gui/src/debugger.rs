@@ -45,9 +45,7 @@ impl DebuggerUi {
 
     pub fn update(&mut self, ui: &mut egui::Ui) {
         if self.is_running {
-            ui.input(|input| {
-                self.gb_runner.update(&mut self.gameboy, input);
-            });
+            self.gb_runner.update(&mut self.gameboy, ui.ctx());
             ui.request_repaint_after(self.gb_runner.frame_duration());
         }
         self.ui(ui);

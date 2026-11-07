@@ -147,7 +147,7 @@ impl Ppu {
             PpuMode::Mode3 => self.mode3(bus),
             PpuMode::Mode0 => self.mode0(),
             PpuMode::Mode0End => self.mode0_end(bus),
-            PpuMode::Mode1 => self.mode1(bus),
+            PpuMode::Mode1 => self.mode1(),
             PpuMode::Mode1End => self.mode1_end(bus),
             PpuMode::FrameEnd => self.frame_end(),
         }
@@ -281,7 +281,7 @@ impl Ppu {
         }
     }
 
-    fn mode1(&mut self, bus: &mut Bus) {
+    fn mode1(&mut self) {
         self.dots = 456;
         self.mode = PpuMode::Mode1End;
     }
